@@ -42,8 +42,22 @@ Camera and microphone need HTTPS on phones; use the deployed URL (or `next dev -
 
 ## Deploy (Firebase App Hosting)
 
-Push to `main`; App Hosting builds and deploys. Runtime config lives in `apphosting.yaml`.
-Cloud Scheduler calls `POST /api/reminders/tick` every 15 minutes with header `x-cron-secret`.
+```bash
+gcloud auth login && gcloud auth application-default login && firebase login
+bash scripts/setup-gcp.sh                 # APIs, Firestore, photo bucket, secrets
+firebase apphosting:backends:create --project amnet-sea --backend companion --primary-region asia-east1
+#   -> connect GitHub repo humanmystery/dementia-companion, branch main, root directory "/"
+bash scripts/setup-gcp.sh                 # re-run once to grant the runtime service account its roles
+bash scripts/setup-scheduler.sh https://<backend-url>
+```
+
+After that, every push to `main` builds and deploys. Runtime config lives in `apphosting.yaml`
+(secrets come from Secret Manager). Cloud Scheduler calls `POST /api/reminders/tick` every 15 minutes with
+header `x-cron-secret`.
+
+Push notifications (optional): in the Firebase console add a Web app, generate a Web Push (VAPID) key under
+Cloud Messaging, and add the `NEXT_PUBLIC_FIREBASE_*` values to `apphosting.yaml`. Without them, the phone and
+frame still show invitations by polling.
 
 ## Demo script
 

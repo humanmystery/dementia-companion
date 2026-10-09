@@ -15,7 +15,7 @@ env:
   - variable: GEMINI_MODEL
     value: gemini-3.5-flash
   - variable: GCS_BUCKET
-    value: amnet-sea.firebasestorage.app
+    value: amnet-sea-companion-photos
   - variable: TTS_VOICE
     value: en-GB-Chirp3-HD-Aoede
   - variable: TTS_LANGUAGE

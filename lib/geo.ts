@@ -25,7 +25,7 @@ const townCache = new Map<string, string | null>();
 /** Town or area only, never a street, shop or park. */
 export async function townAt(lat: number, lng: number): Promise<string | null> {
   const key = process.env.MAPS_API_KEY;
-  if (!key) return null;
+  if (!key || key === "unset") return null;
   const cacheKey = `${lat.toFixed(2)},${lng.toFixed(2)}`;
   if (townCache.has(cacheKey)) return townCache.get(cacheKey)!;
   try {
