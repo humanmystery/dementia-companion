@@ -163,9 +163,10 @@ ${feedback ?? ""}`,
     (out) => [out.opener],
     ctx,
     () => ({
-      opener: pack.note
-        ? `This is a lovely one: ${pack.note.replace(/\.$/, "")}. What do you like about it?`
-        : "What a lovely photo. What catches your eye in this one?",
+      opener:
+        pack.people.length === 1 && !pack.people[0].deceased
+          ? `Here you are with ${pack.people[0].name}. What do you like about this one?`
+          : "What a lovely photo. What catches your eye in this one?",
     }),
   );
   return { opener: value.opener, usedFallback };
