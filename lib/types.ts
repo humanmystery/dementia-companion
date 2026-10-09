@@ -1,0 +1,105 @@
+export type Person = {
+  id: string;
+  name: string;
+  nickname?: string;
+  relationship: string;
+  deceased: boolean;
+  notes: string[];
+  descriptors: number[][];
+  refPhotoPaths: string[];
+  confirmed: boolean;
+  createdAt: string;
+};
+
+export type Place = {
+  id: string;
+  name: string;
+  lat: number;
+  lng: number;
+  radiusM: number;
+};
+
+export type FaceBox = { x: number; y: number; width: number; height: number };
+
+export type FaceMatch = {
+  personId: string | null;
+  box: FaceBox;
+  distance: number;
+};
+
+export type PhotoSource = "yesterday" | "album" | "capture";
+
+export type Photo = {
+  id: string;
+  path: string;
+  contentType: string;
+  source: PhotoSource;
+  digitalOrScanned: "digital" | "scanned";
+  exif: { takenAt?: string; lat?: number; lng?: number };
+  placeLabel?: string;
+  placeKind?: "saved" | "town";
+  faceMatches: FaceMatch[];
+  faces: { descriptor: number[]; box: FaceBox }[];
+  note?: string;
+  tags: string[];
+  uploadedAt: string;
+};
+
+export type Profile = {
+  name?: string;
+  gender?: string;
+  age?: number;
+  livingAlone?: boolean;
+  livingDetails?: string;
+  regularActivities: string[];
+  attentionEvents: string[];
+  stage?: "early" | "mid";
+};
+
+export type Task = {
+  id: string;
+  name: string;
+  sceneHints: string;
+  steps: string[];
+  confirmed: boolean;
+  createdAt: string;
+};
+
+export type ScheduleItem = {
+  id: string;
+  title: string;
+  time: string;
+  carerWording?: string;
+  confirmed: boolean;
+};
+
+export type ReminderPhrase = {
+  id: string;
+  text: string;
+  /** Optional time-of-day fit, e.g. "evening" for "Shall we take a photo of dinner?" */
+  slot?: "morning" | "midday" | "afternoon" | "evening" | "any";
+  approved: boolean;
+  createdAt: string;
+};
+
+export type Settings = {
+  activeHours: { start: string; end: string };
+  remindersEnabled: boolean;
+  intervalMin: number;
+  jitterMin: number;
+  maxPerDay: number;
+  fakeClock?: string | null;
+  recapLastPlayedDay?: string | null;
+};
+
+export type ReminderEvent = {
+  id: string;
+  text: string;
+  firedAt: string;
+  day: string;
+  status: "pending" | "accepted" | "declined" | "ignored";
+};
+
+export type PushToken = { id: string; token: string; createdAt: string };
+
+export type FaceCooldown = { id: string; lastCuedAt: string };

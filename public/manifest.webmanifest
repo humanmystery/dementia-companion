@@ -1,0 +1,9 @@
+{
+  "name": "Companion",
+  "short_name": "Companion",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f6efe6",
+  "theme_color": "#f6efe6",
+  "icons": []
+}

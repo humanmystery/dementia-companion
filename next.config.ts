@@ -1,10 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
-  cacheComponents: true,
-  partialPrefetching: true,
   reactCompiler: true,
+  serverExternalPackages: ["firebase-admin", "@google-cloud/text-to-speech", "exifr"],
   turbopack: {
     rules: {
       "*.css": {

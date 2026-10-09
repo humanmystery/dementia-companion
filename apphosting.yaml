@@ -1,0 +1,30 @@
+runConfig:
+  minInstances: 0
+  maxInstances: 3
+  concurrency: 40
+  cpu: 1
+  memoryMiB: 1024
+
+env:
+  - variable: DATA_BACKEND
+    value: firestore
+  - variable: GOOGLE_CLOUD_PROJECT
+    value: amnet-sea
+  - variable: GOOGLE_CLOUD_LOCATION
+    value: global
+  - variable: GEMINI_MODEL
+    value: gemini-3.5-flash
+  - variable: GCS_BUCKET
+    value: amnet-sea.firebasestorage.app
+  - variable: TTS_VOICE
+    value: en-GB-Chirp3-HD-Aoede
+  - variable: TTS_LANGUAGE
+    value: en-GB
+  - variable: TZ
+    value: Asia/Hong_Kong
+  - variable: CARER_PASSCODE
+    secret: carer-passcode
+  - variable: CRON_SECRET
+    secret: cron-secret
+  - variable: MAPS_API_KEY
+    secret: maps-api-key
