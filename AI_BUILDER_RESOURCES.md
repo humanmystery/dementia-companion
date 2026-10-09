@@ -16,7 +16,15 @@ Nothing here touches the project's existing Firestore databases or App Hosting b
 | App Hosting backend | `ai-builder-companion` | asia-east1 | name only |
 | Cloud Run service (created by App Hosting) | `ai-builder-companion` | asia-east1 | name only |
 | Cloud Scheduler job | `ai-builder-companion-reminder-tick` | asia-east1 | name + description |
-| Firebase web app (push only, optional) | `ai-builder-companion` | global | name only |
+| Firebase web app (made by backend create) | `ai-builder-companion` | global | name only |
+| Storage bucket (auto, App Hosting source uploads) | `firebaseapphosting-sources-40917271868-asia-east1` | asia-east1 | no (Google-managed name) |
+| Artifact Registry repo (auto, App Hosting images) | `firebaseapphosting-images` | asia-east1 | no (Google-managed name) |
+
+Live URL: https://ai-builder-companion--amnet-sea.asia-east1.hosted.app
+
+The two auto-created resources at the bottom were created by Firebase App Hosting on its first deploy and are
+only used by App Hosting. Nothing else in the project used App Hosting before this, so they belong to this app.
+The Cloud Run service `shkaud` in asia-east1 existed before and is not ours.
 
 Project-level IAM roles granted to the service account above: `roles/firebaseapphosting.computeRunner`,
 `roles/aiplatform.user`, `roles/datastore.user`, `roles/firebasecloudmessaging.admin`,
@@ -37,4 +45,8 @@ gcloud storage rm -r gs://amnet-sea-ai-builder-companion-photos
 for s in ai-builder-carer-passcode ai-builder-cron-secret ai-builder-maps-api-key; do gcloud secrets delete $s --project=$P; done
 gcloud services api-keys list --project=$P --filter="displayName=ai-builder-companion-geocoding" --format="value(name)" | xargs -n1 gcloud services api-keys delete
 gcloud iam service-accounts delete ai-builder-companion@$P.iam.gserviceaccount.com --project=$P
+gcloud storage rm -r gs://firebaseapphosting-sources-40917271868-asia-east1
+gcloud artifacts repositories delete firebaseapphosting-images --location=asia-east1 --project=$P
 ```
+
+Also remove the `ai-builder-companion` web app in Firebase console > Project settings.
