@@ -88,7 +88,8 @@ class FirestoreBackend implements Backend {
     const app = await adminApp();
     const { getFirestore } = await import("firebase-admin/firestore");
     const { getStorage } = await import("firebase-admin/storage");
-    return { fs: getFirestore(app), bucket: getStorage(app).bucket() };
+    const fs = process.env.FIRESTORE_DATABASE ? getFirestore(app, process.env.FIRESTORE_DATABASE) : getFirestore(app);
+    return { fs, bucket: getStorage(app).bucket() };
   }
   async list(col: Collection) {
     const { fs } = await this.admin();

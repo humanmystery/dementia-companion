@@ -59,8 +59,11 @@ export function canListen(): boolean {
   return !!(w.SpeechRecognition || w.webkitSpeechRecognition);
 }
 
-/** One utterance via the browser's speech recognition. Resolves with "" on silence or error. */
-export function listenOnce(timeoutMs = 30_000): { result: Promise<string>; stop: () => void } {
+/**
+ * One utterance via the browser's speech recognition. Browsers give up after a few seconds of silence,
+ * so recognition restarts until `silenceMs` has passed with nothing said. Resolves with "" on silence.
+ */
+export function listenOnce(silenceMs = 30_000): { result: Promise<string>; stop: () => void } {
   const w = window as unknown as Record<string, new () => Recognition>;
   const Ctor = w.SpeechRecognition || w.webkitSpeechRecognition;
   const rec = new Ctor();
@@ -68,17 +71,36 @@ export function listenOnce(timeoutMs = 30_000): { result: Promise<string>; stop:
   rec.interimResults = false;
   rec.maxAlternatives = 1;
   let text = "";
+  let stopped = false;
+  const startedAt = Date.now();
   const result = new Promise<string>((resolve) => {
-    const timer = setTimeout(() => rec.stop(), timeoutMs);
+    const timer = setTimeout(() => {
+      stopped = true;
+      rec.stop();
+    }, silenceMs);
     rec.onresult = (e) => {
       text = e.results[0]?.[0]?.transcript ?? "";
     };
     rec.onerror = () => {};
     rec.onend = () => {
+      if (!text.trim() && !stopped && Date.now() - startedAt < silenceMs) {
+        try {
+          rec.start();
+          return;
+        } catch {
+          // fall through and resolve
+        }
+      }
       clearTimeout(timer);
       resolve(text.trim());
     };
     rec.start();
   });
-  return { result, stop: () => rec.stop() };
+  return {
+    result,
+    stop: () => {
+      stopped = true;
+      rec.stop();
+    },
+  };
 }

@@ -21,6 +21,7 @@ type Mode =
 const SLIDE_MS = 9000;
 const MAX_PERSON_TURNS = 5;
 const SILENCE_MS = 30_000;
+const INVITE_VISIBLE_MS = 3 * 60_000;
 const GOODBYE = "I'll let you rest now. Thank you for looking with me.";
 
 async function post<T>(url: string, body: unknown): Promise<T> {
@@ -65,17 +66,29 @@ export default function FrameApp() {
     return () => clearInterval(t);
   }, [mode.kind, photos.length]);
 
-  // Gentle photo invitation (shown on the frame too)
+  // Gentle photo invitation (shown on the frame too). It fades by itself; nobody has to dismiss it.
+  const fadedInvite = useRef<string | null>(null);
   useEffect(() => {
     const check = async () => {
       const res = await fetch("/api/reminders/pending");
       const { reminder } = (await res.json()) as { reminder: { id: string; text: string } | null };
-      setInvite(reminder);
+      setInvite(reminder && reminder.id !== fadedInvite.current ? reminder : null);
     };
-    void check();
+    const first = setTimeout(check, 0);
     const t = setInterval(check, 30_000);
-    return () => clearInterval(t);
+    return () => {
+      clearTimeout(first);
+      clearInterval(t);
+    };
   }, []);
+  useEffect(() => {
+    if (!invite) return;
+    const t = setTimeout(() => {
+      fadedInvite.current = invite.id;
+      setInvite(null);
+    }, INVITE_VISIBLE_MS);
+    return () => clearTimeout(t);
+  }, [invite]);
 
   const clearSilence = () => {
     if (silenceTimer.current) clearTimeout(silenceTimer.current);
@@ -106,11 +119,15 @@ export default function FrameApp() {
     }, SILENCE_MS);
   }, [endChat]);
 
+  const listenRef = useRef<(() => Promise<void>) | null>(null);
+
+  /** Speak, then hand the turn over: listen hands-free where the browser can, otherwise wait for a tap. */
   const companionSays = useCallback(
     async (text: string) => {
       setMode((m) => (m.kind === "chat" ? { ...m, turns: [...m.turns, { role: "companion", text }], thinking: false } : m));
       await speak(text);
-      armSilence();
+      if (canListen() && listenRef.current) void listenRef.current();
+      else armSilence();
     },
     [armSilence],
   );
@@ -152,18 +169,25 @@ export default function FrameApp() {
     [companionSays, endChat],
   );
 
-  async function listen() {
+  const listen = useCallback(async () => {
     const m = modeRef.current;
-    if (m.kind !== "chat" || m.thinking) return;
+    if (m.kind !== "chat" || m.thinking || m.listening) return;
     clearSilence();
     stopSpeaking();
-    setMode({ ...m, listening: true });
+    const listening = { ...m, listening: true };
+    modeRef.current = listening;
+    setMode(listening);
     const l = listenOnce(SILENCE_MS);
     stopListening.current = l.stop;
     const text = await l.result;
     stopListening.current = null;
+    if (modeRef.current.kind !== "chat") return;
     await personSays(text);
-  }
+  }, [personSays]);
+
+  useEffect(() => {
+    listenRef.current = listen;
+  }, [listen]);
 
   async function playRecap(recap: Extract<Recap, { status: "recap" }>) {
     for (let i = 0; i < recap.lines.length; i++) {

@@ -44,14 +44,16 @@ Camera and microphone need HTTPS on phones; use the deployed URL (or `next dev -
 
 ```bash
 gcloud auth login && gcloud auth application-default login && firebase login
-bash scripts/setup-gcp.sh                 # APIs, Firestore, photo bucket, secrets
-firebase apphosting:backends:create --project amnet-sea --backend companion --primary-region asia-east1
-#   -> connect GitHub repo humanmystery/dementia-companion, branch main, root directory "/"
-bash scripts/setup-gcp.sh                 # re-run once to grant the runtime service account its roles
+bash scripts/setup-gcp.sh                 # APIs, Firestore db, photo bucket, service account, secrets
+firebase apphosting:backends:create --project amnet-sea --backend ai-builder-companion \
+  --primary-region asia-east1 --root-dir / \
+  --service-account ai-builder-companion@amnet-sea.iam.gserviceaccount.com
+firebase deploy --only apphosting --project amnet-sea   # uploads local source and rolls out
 bash scripts/setup-scheduler.sh https://<backend-url>
 ```
 
-After that, every push to `main` builds and deploys. Runtime config lives in `apphosting.yaml`
+Redeploy with `firebase deploy --only apphosting --project amnet-sea`. Every resource created for this project is
+listed (with cleanup commands) in `AI_BUILDER_RESOURCES.md`. Runtime config lives in `apphosting.yaml`
 (secrets come from Secret Manager). Cloud Scheduler calls `POST /api/reminders/tick` every 15 minutes with
 header `x-cron-secret`.
 

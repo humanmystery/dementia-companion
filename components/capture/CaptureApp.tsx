@@ -38,24 +38,47 @@ export default function CaptureApp() {
 
   const note = (line: string) => setLog((l) => [`${new Date().toLocaleTimeString()} ${line}`, ...l].slice(0, 8));
 
-  async function start() {
+  const [stream, setStream] = useState<MediaStream | null>(null);
+  const startRef = useRef<((greet: boolean) => Promise<void>) | null>(null);
+
+  async function start(greet = true) {
+    if (started) return;
     setStarted(true);
     void loadFaceApi();
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 } },
-        audio: false,
-      });
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
-      }
+      setStream(
+        await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 } },
+          audio: false,
+        }),
+      );
     } catch {
       setCameraError("The camera isn't available. Please allow camera access and reload.");
     }
     // Unlocks audio on iOS: the first sound must follow a tap.
-    void speak("I'm here.");
+    if (greet) void speak("I'm here.");
   }
+
+  useEffect(() => {
+    startRef.current = start;
+  });
+
+  // Once camera access has been granted, skip the Start screen entirely.
+  useEffect(() => {
+    void navigator.permissions
+      ?.query({ name: "camera" as PermissionName })
+      .then((p) => {
+        if (p.state === "granted") void startRef.current?.(false);
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !stream) return;
+    video.srcObject = stream;
+    void video.play().catch(() => {});
+  }, [stream, started]);
 
   const say = useCallback(async (text: string) => {
     setSaid(text);
@@ -219,7 +242,7 @@ export default function CaptureApp() {
         <p className="max-w-sm text-lg opacity-80">
           {fromNotification ? "Shall we take a photo?" : "This phone stands in for the glasses. Pop your earbuds in."}
         </p>
-        <button onClick={start} className="rounded-full bg-accent px-10 py-5 text-2xl font-bold shadow-xl">
+        <button onClick={() => start()} className="rounded-full bg-accent px-10 py-5 text-2xl font-bold shadow-xl">
           Start
         </button>
       </div>
