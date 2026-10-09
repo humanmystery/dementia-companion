@@ -30,3 +30,9 @@ env:
     secret: ai-builder-cron-secret
   - variable: MAPS_API_KEY
     secret: ai-builder-maps-api-key
+  - variable: LIVE_RELAY_URL
+    value: wss://ai-builder-live-relay-40917271868.asia-east1.run.app
+  - variable: LIVE_RELAY_SECRET
+    secret: ai-builder-live-relay-secret
+    availability:
+      - RUNTIME

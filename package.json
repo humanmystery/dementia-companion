@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "relay": "npm --prefix relay run dev"
   },
   "dependencies": {
     "@google-cloud/text-to-speech": "^7.1.1",

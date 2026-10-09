@@ -2,8 +2,8 @@ import "server-only";
 import { dayKey, getSettings, now, saveSettings } from "./config";
 import { db } from "./db";
 import { buildFactPack, deceasedNames, renderFacts, type FactPack } from "./facts";
-import { generateJson, type ImageInput } from "./gemini";
-import { guarded, namesInNote, type GuardContext } from "./guard";
+import { generateJson, PERSONA, type ImageInput } from "./gemini";
+import { checkText, guarded, namesInNote, type GuardContext } from "./guard";
 import { toView, type PhotoView } from "./photoView";
 import type { Person, Photo } from "./types";
 
@@ -144,6 +144,9 @@ const OPEN_RULES = `Rules for this photo:
 - For anyone who has passed away: past tense, gentle, never as if they are visiting or can be called.
 - If there is no note, no recognised person and no metadata: describe what you see and ask an easy question. Name no one, give no place or date.`;
 
+const CHAT_RULES = `- If they remember it differently from the note, go along with their version warmly. Do not correct them, and do not repeat the note at them.
+- If they seem unsure or upset, reassure gently and keep it light.`;
+
 export async function openPhoto(photoId: string): Promise<{ opener: string; usedFallback: boolean }> {
   const { pack, image, ctx } = await loadPhoto(photoId);
   const { value, usedFallback } = await guarded(
@@ -191,8 +194,7 @@ export async function replyAboutPhoto(
 ${renderFacts(pack)}
 
 ${OPEN_RULES}
-- If they remember it differently from the note, go along with their version warmly. Do not correct them, and do not repeat the note at them.
-- If they seem unsure or upset, reassure gently and keep it light.
+${CHAT_RULES}
 
 Conversation so far:
 ${transcript}
@@ -211,4 +213,43 @@ ${feedback ?? ""}`,
     }),
   );
   return { reply: value.reply, usedFallback };
+}
+
+// ---------- Mode 2 over Gemini Live ----------
+
+export type LiveSetup = {
+  systemInstruction: string;
+  image: { mimeType: string; data: string } | null;
+  opener: string;
+};
+
+/** Everything the Live session starts with. Built here so the facts and rules never pass through the browser. */
+export async function liveSetup(photoId: string, opener: string): Promise<LiveSetup> {
+  const { pack, image } = await loadPhoto(photoId);
+  const systemInstruction = `${PERSONA}
+
+You are speaking out loud with the person about one photo on their photo frame. The photo is attached at the start of the conversation.
+
+${renderFacts(pack)}
+
+${OPEN_RULES}
+${CHAT_RULES}
+- You have already said the opening line. Do not repeat it or greet them again.
+- Each time, answer what they said in 1-2 short sentences, then at most one easy open question. Speak slowly and warmly.
+- If they are quiet, wait. Do not fill the silence.
+- If they want to stop, say one short warm goodbye with no question.`;
+  return {
+    systemInstruction,
+    image: image ? { mimeType: image.mimeType, data: image.data.toString("base64") } : null,
+    opener,
+  };
+}
+
+/** Checks each companion line of a saved Live chat with the same rules as the generated lines. */
+export async function flagLiveTurns<T extends { role: string; text: string }>(photoId: string, turns: T[]) {
+  const { ctx } = await loadPhoto(photoId);
+  return turns.map((t) => {
+    const flags = t.role === "companion" ? checkText(t.text, ctx) : [];
+    return flags.length ? { ...t, flags } : t;
+  });
 }

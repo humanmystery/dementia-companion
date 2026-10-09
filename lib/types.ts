@@ -103,3 +103,20 @@ export type ReminderEvent = {
 export type PushToken = { id: string; token: string; createdAt: string };
 
 export type FaceCooldown = { id: string; lastCuedAt: string };
+
+export type LiveTurn = { role: "companion" | "person"; text: string; interrupted?: boolean; flags?: string[] };
+
+/** One Gemini Live chat on the frame. The id is a hash of the one-time ticket, never the ticket itself. */
+export type LiveSession = {
+  id: string;
+  photoId: string;
+  opener: string;
+  status: "issued" | "active" | "ended";
+  createdAt: string;
+  expiresAt: string;
+  startedAt?: string;
+  endedAt?: string;
+  endedReason?: string;
+  turns: LiveTurn[];
+  flagged?: boolean;
+};

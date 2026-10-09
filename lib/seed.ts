@@ -47,6 +47,7 @@ const ALL: Collection[] = [
   "phrases",
   "reminderEvents",
   "faceCooldowns",
+  "liveSessions",
   "config",
 ];
 

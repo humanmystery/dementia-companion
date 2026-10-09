@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import ConversationsTab from "./ConversationsTab";
 import DemoTab from "./DemoTab";
 import PeopleTab from "./PeopleTab";
 import PhotosTab from "./PhotosTab";
@@ -15,6 +16,7 @@ const TABS = [
   { id: "photos", label: "Photos", Component: PhotosTab },
   { id: "setup", label: "Daily tasks & schedule", Component: SetupTab },
   { id: "reminders", label: "Photo invitations", Component: RemindersTab },
+  { id: "conversations", label: "Conversations", Component: ConversationsTab },
   { id: "demo", label: "Demo controls", Component: DemoTab },
 ] as const;
 

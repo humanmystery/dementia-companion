@@ -14,6 +14,7 @@ export type Collection =
   | "reminderEvents"
   | "pushTokens"
   | "faceCooldowns"
+  | "liveSessions"
   | "config";
 
 type Doc = { id: string } & Record<string, unknown>;

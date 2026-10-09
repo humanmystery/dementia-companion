@@ -2,6 +2,6 @@
   "apphosting": {
     "backendId": "ai-builder-companion",
     "rootDir": "/",
-    "ignore": ["node_modules", ".git", ".next", ".data", "demo/photos", ".env.local", "firebase-debug.log"]
+    "ignore": ["node_modules", ".git", "relay", ".next", ".data", "demo/photos", ".env.local", "firebase-debug.log"]
   }
 }

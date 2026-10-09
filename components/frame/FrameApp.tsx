@@ -3,9 +3,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { PhotoView } from "@/lib/photoView";
 import { useBrowserValue, useOnMount } from "@/lib/client/hooks";
+import { connectLive, latestSentence, type LiveChat } from "@/lib/client/live";
 import { canListen, listenOnce, speak, stopSpeaking } from "@/lib/client/voice";
 
-type Turn = { role: "companion" | "person"; text: string };
+type Turn = { role: "companion" | "person"; text: string; interrupted?: boolean };
 
 type Recap =
   | { status: "too_early" | "already" }
@@ -16,7 +17,7 @@ type Mode =
   | { kind: "idle" }
   | { kind: "recap"; photos: PhotoView[]; lines: string[]; active: number; caption: string }
   | { kind: "browse"; caption: string }
-  | { kind: "chat"; photo: PhotoView; turns: Turn[]; thinking: boolean; listening: boolean };
+  | { kind: "chat"; photo: PhotoView; turns: Turn[]; thinking: boolean; listening: boolean; live: boolean; caption?: string };
 
 const SLIDE_MS = 9000;
 const MAX_PERSON_TURNS = 5;
@@ -41,7 +42,10 @@ export default function FrameApp() {
   const silenceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const stopListening = useRef<(() => void) | null>(null);
   const modeRef = useRef(mode);
+  const liveRef = useRef<LiveChat | null>(null);
+  const [lastEngine, setLastEngine] = useState("");
   const voiceInput = useBrowserValue(canListen, false);
+  const liveAllowed = useBrowserValue(() => new URLSearchParams(location.search).get("live") !== "off", true);
   useEffect(() => {
     modeRef.current = mode;
   }, [mode]);
@@ -98,19 +102,39 @@ export default function FrameApp() {
   const backToSlideshow = useCallback(() => {
     clearSilence();
     stopListening.current?.();
+    liveRef.current?.end("left");
+    liveRef.current = null;
     stopSpeaking();
     setMode({ kind: "idle" });
   }, []);
 
+  /** Ends any chat the same way: the goodbye in the usual voice, then back to the slideshow. */
   const endChat = useCallback(
-    async (line = GOODBYE) => {
+    async (line = GOODBYE, reason = "done") => {
       clearSilence();
-      setMode((m) => (m.kind === "chat" ? { ...m, turns: [...m.turns, { role: "companion", text: line }], thinking: false, listening: false } : m));
+      const live = liveRef.current;
+      liveRef.current = null;
+      if (live) {
+        if (reason === "turns") await live.drained();
+        live.end(reason, line);
+      }
+      setMode((m) =>
+        m.kind === "chat"
+          ? { ...m, turns: [...m.turns, { role: "companion", text: line }], thinking: false, listening: false, caption: undefined }
+          : m,
+      );
       await speak(line);
       backToSlideshow();
     },
     [backToSlideshow],
   );
+
+  const armLiveSilence = useCallback(() => {
+    clearSilence();
+    silenceTimer.current = setTimeout(() => {
+      if (liveRef.current) void endChat(GOODBYE, "silence");
+    }, SILENCE_MS);
+  }, [endChat]);
 
   const armSilence = useCallback(() => {
     clearSilence();
@@ -132,18 +156,77 @@ export default function FrameApp() {
     [armSilence],
   );
 
+  /** Tap-to-talk takes over when Live is off, fails to connect, or drops mid-chat. */
+  const continueWithoutLive = useCallback(() => {
+    setLastEngine("tap-to-talk");
+    if (canListen() && listenRef.current) void listenRef.current();
+    else armSilence();
+  }, [armSilence]);
+
+  const liveEvents = useCallback(
+    (photoId: string) => ({
+      onCaption: (text: string) => {
+        clearSilence();
+        setMode((m) => (m.kind === "chat" && m.photo.id === photoId ? { ...m, caption: latestSentence(text) } : m));
+      },
+      onHeard: clearSilence,
+      onTurns: (turns: Turn[]) => {
+        const m = modeRef.current;
+        if (m.kind !== "chat" || m.photo.id !== photoId) return;
+        const next = { ...m, turns: [...m.turns, ...turns] };
+        modeRef.current = next;
+        setMode(next);
+        if (next.turns.filter((t) => t.role === "person").length >= MAX_PERSON_TURNS) void endChat(GOODBYE, "turns");
+        else void liveRef.current?.drained().then(() => liveRef.current && armLiveSilence());
+      },
+      onDrop: () => {
+        liveRef.current = null;
+        const m = modeRef.current;
+        if (m.kind !== "chat" || m.photo.id !== photoId) return;
+        setMode({ ...m, live: false, caption: undefined });
+        continueWithoutLive();
+      },
+    }),
+    [armLiveSilence, continueWithoutLive, endChat],
+  );
+
   const startChat = useCallback(
     async (photo: PhotoView, opener?: string) => {
       clearSilence();
-      setMode({ kind: "chat", photo, turns: [], thinking: !opener, listening: false });
+      setMode({ kind: "chat", photo, turns: [], thinking: !opener, listening: false, live: false });
+      let text = opener;
+      if (!text) {
+        try {
+          text = (await post<{ opener: string }>("/api/story/open", { photoId: photo.id })).opener;
+        } catch {
+          text = "What a lovely photo. I'm happy to just look at it with you.";
+        }
+      }
+      // The opener stays guard-checked and in the usual voice; Live connects while it plays.
+      const live = liveAllowed ? connectLive(photo.id, text, liveEvents(photo.id)).catch(() => null) : Promise.resolve(null);
+      setMode((m) => (m.kind === "chat" ? { ...m, turns: [{ role: "companion", text }], thinking: false } : m));
+      await speak(text);
+      const chat = await live;
+      const m = modeRef.current;
+      if (m.kind !== "chat" || m.photo.id !== photo.id) {
+        chat?.end("left");
+        return;
+      }
+      if (!chat) return continueWithoutLive();
+      liveRef.current = chat;
+      setMode({ ...m, live: true });
+      setLastEngine("Gemini Live");
       try {
-        const text = opener ?? (await post<{ opener: string }>("/api/story/open", { photoId: photo.id })).opener;
-        await companionSays(text);
+        await chat.startMic();
+        armLiveSilence();
       } catch {
-        await companionSays("What a lovely photo. I'm happy to just look at it with you.");
+        chat.end("mic_failed");
+        liveRef.current = null;
+        setMode({ ...m, live: false });
+        continueWithoutLive();
       }
     },
-    [companionSays],
+    [armLiveSilence, continueWithoutLive, liveAllowed, liveEvents],
   );
 
   const personSays = useCallback(
@@ -301,10 +384,12 @@ export default function FrameApp() {
               {mode.thinking ? (
                 <div className="breathe h-5 w-5 rounded-full bg-accent-soft" />
               ) : (
-                [...mode.turns].reverse().find((t) => t.role === "companion")?.text
+                (mode.live && mode.caption) || [...mode.turns].reverse().find((t) => t.role === "companion")?.text
               )}
             </div>
-            {voiceInput ? (
+            {mode.live ? (
+              <div className="breathe h-6 w-6 shrink-0 rounded-full bg-sage" aria-label="Listening" />
+            ) : voiceInput ? (
               <button
                 onClick={listen}
                 disabled={mode.thinking}
@@ -365,6 +450,10 @@ export default function FrameApp() {
       {demoOpen && (
         <div className="absolute left-4 top-4 z-10 flex flex-col gap-2 rounded-2xl bg-white/95 p-4 text-sm text-black shadow-2xl">
           <strong>Demo</strong>
+          <span className="opacity-60">
+            Chat: {liveAllowed ? "Gemini Live, tap-to-talk if it fails" : "tap-to-talk (?live=off)"}
+            {lastEngine && <> · last used {lastEngine}</>}
+          </span>
           <button
             className="rounded-lg bg-accent px-3 py-2 font-semibold text-white"
             onClick={async () => {
