@@ -165,7 +165,7 @@ ${feedback ?? ""}`,
     () => ({
       opener:
         pack.people.length === 1 && !pack.people[0].deceased
-          ? `Here you are with ${pack.people[0].name}. What do you like about this one?`
+          ? `Here's ${pack.people[0].name}. What do you like about this one?`
           : "What a lovely photo. What catches your eye in this one?",
     }),
   );
