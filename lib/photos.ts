@@ -1,5 +1,6 @@
 import "server-only";
-import { now } from "./config";
+import { dayKey, now } from "./config";
+import { recapDayForUpload } from "./dayPhotos";
 import { db, newId } from "./db";
 import { matchFaces, type DetectedFace } from "./faceMatch";
 import { resolvePlace } from "./geo";
@@ -44,8 +45,9 @@ export async function ingestPhoto(input: {
     exif.lat = input.latOverride;
     exif.lng = input.lngOverride;
   }
+  const current = await now();
   if (input.source === "capture" || (!exif.takenAt && input.source === "yesterday")) {
-    exif.takenAt = input.takenAtOverride ?? (await now()).toISOString();
+    exif.takenAt = input.takenAtOverride ?? current.toISOString();
   }
 
   const [people, places] = await Promise.all([db.list<Person>("people"), db.list<Place>("places")]);
@@ -65,6 +67,7 @@ export async function ingestPhoto(input: {
     note: input.note?.trim() || undefined,
     tags: input.tags ?? [],
     uploadedAt: new Date().toISOString(),
+    ...(input.source === "yesterday" ? { recapDay: recapDayForUpload(exif.takenAt, dayKey(current)) } : {}),
   };
   return db.set("photos", photo);
 }

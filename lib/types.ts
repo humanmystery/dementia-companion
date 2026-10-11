@@ -27,7 +27,8 @@ export type FaceMatch = {
   distance: number;
 };
 
-export type PhotoSource = "yesterday" | "album" | "capture";
+/** "archived": a day photo that had no recognised people and wasn't talked about, filed away after its recap day. */
+export type PhotoSource = "yesterday" | "album" | "capture" | "archived";
 
 export type Photo = {
   id: string;
@@ -43,6 +44,13 @@ export type Photo = {
   note?: string;
   tags: string[];
   uploadedAt: string;
+  /** Day (YYYY-MM-DD) whose morning recap tells this photo. Set for photos uploaded as "yesterday". */
+  recapDay?: string;
+  /** They said something back in a chat about this photo. */
+  talkedAbout?: boolean;
+  /** Set once a day photo has been moved on after its recap day. */
+  movedOnAt?: string;
+  movedFrom?: PhotoSource;
 };
 
 export type Profile = {

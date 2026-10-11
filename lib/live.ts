@@ -1,5 +1,6 @@
 import "server-only";
 import { createHash, randomBytes, timingSafeEqual } from "crypto";
+import { markTalkedAbout } from "./dayPhotos";
 import { db } from "./db";
 import { flagLiveTurns, liveSetup, type LiveSetup } from "./story";
 import type { LiveSession, LiveTurn } from "./types";
@@ -53,6 +54,7 @@ export async function saveTranscript(sessionId: string, turns: LiveTurn[], ended
   const session = await db.get<LiveSession>("liveSessions", sessionId);
   if (!session) throw new Error("Session not found");
   const checked = await flagLiveTurns(session.photoId, turns.filter((t) => t.text.trim()));
+  if (checked.some((t) => t.role === "person")) await markTalkedAbout(session.photoId);
   await db.update<LiveSession>("liveSessions", sessionId, {
     status: "ended",
     endedAt: new Date().toISOString(),

@@ -1,4 +1,6 @@
 import { carerDenied, errorResponse } from "@/lib/carerAuth";
+import { dayKey, now } from "@/lib/config";
+import { recapDayForUpload } from "@/lib/dayPhotos";
 import { db } from "@/lib/db";
 import { resolvePlace } from "@/lib/geo";
 import { toView } from "@/lib/photoView";
@@ -23,6 +25,13 @@ export async function PATCH(req: Request, ctx: RouteContext<"/api/photos/[id]">)
       const place = await resolvePlace(patch.exif.lat, patch.exif.lng, await db.list<Place>("places"));
       patch.placeLabel = place?.label;
       patch.placeKind = place?.kind;
+    }
+    const source = patch.source ?? existing.source;
+    if (source === "yesterday" && (patch.source === "yesterday" || patch.exif?.takenAt)) {
+      const today = dayKey(await now());
+      patch.recapDay = patch.source && patch.source !== existing.source ? today : recapDayForUpload(patch.exif?.takenAt, today);
+      patch.movedOnAt = undefined;
+      patch.movedFrom = undefined;
     }
     const photo = await db.update<Photo>("photos", id, patch);
     if (!photo) return Response.json({ error: "Not found" }, { status: 404 });

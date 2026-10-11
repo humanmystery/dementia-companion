@@ -50,7 +50,7 @@ export function buildFactPack(photo: Photo, people: Person[], opts: { includeYea
     tags: photo.tags ?? [],
     people: matched,
     unknownFaces,
-    takenByThem: photo.source !== "album",
+    takenByThem: photo.source !== "album" || !!photo.movedFrom,
   };
 
   // Scanned prints carry the scan date, not the photo date, so their metadata is ignored.

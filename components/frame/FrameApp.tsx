@@ -57,7 +57,7 @@ export default function FrameApp() {
     const res = await fetch("/api/photos");
     const all = (await res.json()) as PhotoView[];
     const album = all.filter((p) => p.source === "album");
-    setPhotos(album.length ? album : all);
+    setPhotos(album.length ? album : all.filter((p) => p.source !== "archived"));
   }, []);
 
   useOnMount(loadPhotos);

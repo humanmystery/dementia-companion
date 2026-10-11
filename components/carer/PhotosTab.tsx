@@ -7,10 +7,10 @@ import { detectFaces, loadFaceApi } from "@/lib/client/faces";
 import { canvasToBlob, fileToImage, resizeToCanvas } from "@/lib/client/images";
 import { toLocalInput } from "@/lib/client/time";
 import type { PhotoView } from "@/lib/photoView";
-import type { Place } from "@/lib/types";
+import type { PhotoSource, Place } from "@/lib/types";
 import { Badge, Button, Card, Field, Input, TextArea } from "../ui";
 
-type Source = "album" | "yesterday" | "capture";
+type Source = PhotoSource;
 
 async function readExifInBrowser(file: File) {
   try {
@@ -116,7 +116,7 @@ export default function PhotosTab() {
       </Card>
 
       <div className="flex gap-2">
-        {(["album", "yesterday", "capture"] as Source[]).map((s) => (
+        {(["album", "yesterday", "capture", "archived"] as Source[]).map((s) => (
           <button
             key={s}
             onClick={() => setFilter(s)}
@@ -124,7 +124,7 @@ export default function PhotosTab() {
               filter === s ? "bg-foreground text-background" : "bg-white/70 ring-1 ring-black/10"
             }`}
           >
-            {{ album: "Old album", yesterday: "Yesterday", capture: "Taken on the glasses" }[s]} (
+            {{ album: "Old album", yesterday: "Yesterday", capture: "Taken on the glasses", archived: "Filed away" }[s]} (
             {photos.filter((p) => p.source === s).length})
           </button>
         ))}
@@ -161,6 +161,8 @@ function PhotoCard({ photo, places, onChange }: { photo: PhotoView; places: Plac
         ))}
         {photo.unknownFaces > 0 && <Badge>{photo.unknownFaces} not recognised</Badge>}
         {photo.digitalOrScanned === "scanned" && <Badge>Scanned</Badge>}
+        {photo.talkedAbout && <Badge tone="good">Talked about</Badge>}
+        {photo.movedFrom && photo.source === "album" && <Badge>Joined the album from {photo.movedFrom === "capture" ? "the glasses" : "yesterday"}</Badge>}
         {photo.digitalOrScanned === "digital" && photo.placeLabel && (
           <Badge>{photo.placeKind === "saved" ? `At ${photo.placeLabel}` : `In ${photo.placeLabel}`}</Badge>
         )}
@@ -218,6 +220,11 @@ function PhotoCard({ photo, places, onChange }: { photo: PhotoView; places: Plac
             >
               Move to {photo.source === "album" ? "yesterday" : "album"}
             </Button>
+            {photo.source === "archived" && (
+              <Button variant="ghost" onClick={() => patch({ source: "yesterday" })}>
+                Move to yesterday
+              </Button>
+            )}
             <Button
               variant="danger"
               onClick={async () => {

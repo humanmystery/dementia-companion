@@ -1,5 +1,6 @@
 import "server-only";
 import { dayKey, getProfile, getSettings, now, saveSettings } from "./config";
+import { markTalkedAbout, moveOnDayPhotos, recapDayOf } from "./dayPhotos";
 import { db } from "./db";
 import { buildFactPack, deceasedNames, renderFacts, type FactPack } from "./facts";
 import { generateJson, PERSONA, type ImageInput } from "./gemini";
@@ -58,13 +59,7 @@ const RECAP_FROM_HOUR = 7;
 const RECAP_UNTIL_HOUR = 12;
 const isMorning = (d: Date) => d.getHours() >= RECAP_FROM_HOUR && d.getHours() < RECAP_UNTIL_HOUR;
 
-function isYesterday(photo: Photo, today: Date): boolean {
-  if (photo.source === "yesterday") return true;
-  if (photo.source !== "capture" || !photo.exif?.takenAt) return false;
-  const y = new Date(today);
-  y.setDate(y.getDate() - 1);
-  return dayKey(new Date(photo.exif.takenAt)) === dayKey(y);
-}
+const isYesterday = (photo: Photo, today: Date) => recapDayOf(photo) === dayKey(today);
 
 /** Spread the picks across the whole day, always keeping the first and last photo. */
 function pickAcrossDay<T>(items: T[], max: number): T[] {
@@ -75,6 +70,7 @@ function pickAcrossDay<T>(items: T[], max: number): T[] {
 
 /** Whether the frame should greet them with the morning invitation right now. */
 export async function recapStatus(): Promise<{ due: boolean; greeting: string; hasYesterday: boolean }> {
+  await moveOnDayPhotos();
   const [current, settings, profile, photos] = await Promise.all([now(), getSettings(), getProfile(), db.list<Photo>("photos")]);
   const name = profile.name?.trim();
   return {
@@ -85,6 +81,7 @@ export async function recapStatus(): Promise<{ due: boolean; greeting: string; h
 }
 
 export async function morningRecap(force: boolean): Promise<RecapResult> {
+  await moveOnDayPhotos();
   const current = await now();
   const settings = await getSettings();
   const today = dayKey(current);
@@ -170,7 +167,7 @@ ${feedback ?? ""}`,
 async function loadPhoto(photoId: string) {
   const [photo, people] = await Promise.all([db.get<Photo>("photos", photoId), db.list<Person>("people")]);
   if (!photo) throw new Error("Photo not found");
-  const pack = buildFactPack(photo, people, { includeYear: photo.source === "album" });
+  const pack = buildFactPack(photo, people, { includeYear: photo.source === "album" && !photo.movedFrom });
   const image = await imageOf(photo);
   return { photo, people, pack, image, ctx: guardContext([pack], people) };
 }
@@ -222,6 +219,7 @@ export async function replyAboutPhoto(
   closing: boolean,
 ): Promise<{ reply: string; usedFallback: boolean }> {
   const { pack, image, ctx } = await loadPhoto(photoId);
+  if (history.some((t) => t.role === "person" && t.text.trim())) await markTalkedAbout(photoId);
   const transcript = history.map((t) => `${t.role === "person" ? "Person" : "You"}: ${t.text}`).join("\n");
   const { value, usedFallback } = await guarded(
     (feedback) =>

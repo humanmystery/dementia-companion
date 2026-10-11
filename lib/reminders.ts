@@ -1,6 +1,7 @@
 import "server-only";
 import { createHash } from "crypto";
 import { dayKey, getSettings, minutesOfDay, now } from "./config";
+import { moveOnDayPhotos } from "./dayPhotos";
 import { db, newId } from "./db";
 import { adminApp } from "./firebaseAdmin";
 import { generateJson } from "./gemini";
@@ -98,6 +99,7 @@ export async function fireReminder(current: Date): Promise<ReminderEvent> {
 }
 
 export async function tick(force = false): Promise<{ fired: ReminderEvent | null }> {
+  await moveOnDayPhotos();
   const current = await now();
   const settings = await getSettings();
   const today = await eventsForDay(dayKey(current));
