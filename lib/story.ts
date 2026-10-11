@@ -1,5 +1,5 @@
 import "server-only";
-import { dayKey, getSettings, now, saveSettings } from "./config";
+import { dayKey, getProfile, getSettings, now, saveSettings } from "./config";
 import { db } from "./db";
 import { buildFactPack, deceasedNames, renderFacts, type FactPack } from "./facts";
 import { generateJson, PERSONA, type ImageInput } from "./gemini";
@@ -67,6 +67,19 @@ function pickAcrossDay<T>(items: T[], max: number): T[] {
   if (items.length <= max) return items;
   const last = items.length - 1;
   return Array.from({ length: max }, (_, i) => items[Math.round((i * last) / (max - 1))]);
+}
+
+/** Whether the frame should greet them with the morning invitation right now. */
+export async function recapStatus(): Promise<{ due: boolean; greeting: string; hasYesterday: boolean }> {
+  const [current, settings, profile, photos] = await Promise.all([now(), getSettings(), getProfile(), db.list<Photo>("photos")]);
+  const h = current.getHours();
+  const name = profile.name?.trim();
+  const greeting = `${h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening"}${name ? `, ${name}` : ""}`;
+  return {
+    due: h >= 7 && settings.recapLastPlayedDay !== dayKey(current),
+    greeting,
+    hasYesterday: photos.some((p) => isYesterday(p, current)),
+  };
 }
 
 export async function morningRecap(force: boolean): Promise<RecapResult> {

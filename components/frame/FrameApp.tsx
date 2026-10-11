@@ -37,6 +37,8 @@ export default function FrameApp() {
   const [slide, setSlide] = useState(0);
   const [mode, setMode] = useState<Mode>({ kind: "idle" });
   const [invite, setInvite] = useState<{ id: string; text: string } | null>(null);
+  const [morning, setMorning] = useState<{ greeting: string; hasYesterday: boolean } | null>(null);
+  const greeted = useRef("");
   const [demoOpen, setDemoOpen] = useState(false);
   const [typed, setTyped] = useState("");
   const cornerTaps = useRef<number[]>([]);
@@ -95,6 +97,28 @@ export default function FrameApp() {
     return () => clearTimeout(t);
   }, [invite]);
 
+  // Morning invitation: one big, obvious button instead of a hidden first tap.
+  const checkMorning = useCallback(async () => {
+    if (modeRef.current.kind !== "idle") return;
+    try {
+      const res = await fetch("/api/story/recap");
+      const s = (await res.json()) as { due: boolean; greeting: string; hasYesterday: boolean };
+      setMorning(s.due ? { greeting: s.greeting, hasYesterday: s.hasYesterday } : null);
+    } catch {
+      setMorning(null);
+    }
+  }, []);
+  useOnMount(checkMorning);
+  useEffect(() => {
+    const t = setInterval(checkMorning, 60_000);
+    return () => clearInterval(t);
+  }, [checkMorning]);
+  useEffect(() => {
+    if (!morning || mode.kind !== "idle" || greeted.current === morning.greeting) return;
+    greeted.current = morning.greeting;
+    void speak(`${morning.greeting}. ${morning.hasYesterday ? "Shall we look at yesterday together?" : "Shall we look at some photos together?"}`);
+  }, [morning, mode.kind]);
+
   const clearSilence = () => {
     if (silenceTimer.current) clearTimeout(silenceTimer.current);
     silenceTimer.current = null;
@@ -107,7 +131,9 @@ export default function FrameApp() {
     liveRef.current = null;
     stopSpeaking();
     setMode({ kind: "idle" });
-  }, []);
+    modeRef.current = { kind: "idle" };
+    void checkMorning();
+  }, [checkMorning]);
 
   /** Ends any chat the same way: the goodbye in the usual voice, then back to the slideshow. */
   const endChat = useCallback(
@@ -289,6 +315,8 @@ export default function FrameApp() {
   /** First touch of the day after 7:00 plays yesterday's recap; otherwise a tap opens a chat about the photo. */
   async function onTapSlideshow() {
     const current = photos[slide];
+    stopSpeaking();
+    setMorning(null);
     setMode({ kind: "recap", photos: [], lines: [], active: 0, caption: "" });
     let recap: Recap = { status: "already" };
     try {
@@ -445,8 +473,23 @@ export default function FrameApp() {
         </div>
       )}
 
+      {/* Morning invitation: the whole screen is the button */}
+      {morning && mode.kind === "idle" && (
+        <button
+          onClick={onTapSlideshow}
+          className="fade-in absolute inset-0 flex flex-col items-center justify-center gap-10 bg-[#1f1915]/75 px-8 text-center backdrop-blur-sm"
+        >
+          <span className="text-5xl font-bold leading-tight md:text-7xl">{morning.greeting}</span>
+          <span className="flex items-center gap-4 rounded-full bg-accent px-12 py-7 text-3xl font-bold shadow-2xl md:text-4xl">
+            <span className="breathe inline-block h-5 w-5 rounded-full bg-white/80" />
+            {morning.hasYesterday ? "Let\u2019s look at yesterday" : "Let\u2019s look at some photos"}
+          </span>
+          <span className="text-xl opacity-70 md:text-2xl">Touch anywhere</span>
+        </button>
+      )}
+
       {/* Gentle photo invitation */}
-      {invite && mode.kind === "idle" && (
+      {invite && mode.kind === "idle" && !morning && (
         <div className="fade-in absolute bottom-8 left-1/2 flex -translate-x-1/2 items-center gap-4 rounded-full bg-[#f6efe6]/95 px-7 py-4 text-xl text-[#3b2f2a] shadow-2xl">
           <span>{invite.text}</span>
           <button
