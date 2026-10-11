@@ -113,12 +113,12 @@ export async function morningRecap(force: boolean): Promise<RecapResult> {
           },
           required: ["lines", "summary", "chatPhoto", "opener"],
         },
-        prompt: `It is the morning. Tell the person the little story of their day yesterday, using these ${n} photos (images attached in the same order). Then pick one photo to chat about.
+        prompt: `It is the morning. Tell the person the little story of their own day yesterday, using these ${n} photos they took (images attached in the same order). Then pick one photo to chat about.
 
 ${factsText}
 
 Write:
-- "lines": exactly ${n} entries, one per photo, in time order. Each is 1-2 short sentences. The first starts with "Yesterday". Link them so it sounds like one gentle story ("Then...", "Later on...", "In the evening..."). Use only: the time of day, the place, the recognised people, and the activity or objects you can plainly see. Do not guess why anything happened, what happened between photos, or how anyone felt.
+- "lines": exactly ${n} entries, one per photo, in time order. Each is 1-2 short sentences. The first starts with "Yesterday". Link them so it sounds like one gentle story ("Then...", "Later on...", "In the evening..."). The person took these photos themselves, so it is THEIR day: every line is about where "you" were and who "you" were with ("you and Bee sat outside a cafe"), never about what other people did without them. Use only: the time of day, the place, the recognised people, and the activity or objects you can plainly see. Do not guess why anything happened, what happened between photos, or how anyone felt.
 - "summary": one short warm sentence that wraps up the day, about the day itself. No new facts and no one's feelings (for example "What a full day that was.").
 - "chatPhoto": the number of the photo that is easiest and nicest to chat about. Prefer one with recognised people who are alive and a clear, pleasant activity. Avoid blurry or empty scenes.
 - "opener": about that photo, one warm sentence noticing something visible, then one easy, playful open question with no right answer (for example "What do you like about the park?"). Never ask who someone is, or whether they remember.

@@ -13,6 +13,8 @@ export type FactPack = {
   year?: number;
   takenAt?: string;
   place?: { label: string; kind: "saved" | "town" };
+  /** Yesterday and glasses photos were taken by the person, so they were there even though they're not in the frame. */
+  takenByThem: boolean;
 };
 
 export function timeOfDay(d: Date): string {
@@ -48,6 +50,7 @@ export function buildFactPack(photo: Photo, people: Person[], opts: { includeYea
     tags: photo.tags ?? [],
     people: matched,
     unknownFaces,
+    takenByThem: photo.source !== "album",
   };
 
   // Scanned prints carry the scan date, not the photo date, so their metadata is ignored.
@@ -70,6 +73,11 @@ export function renderFacts(pack: FactPack, label = "PHOTO"): string {
     `1. CARER NOTE (highest truth for who/where/what): ${pack.note ? `"${pack.note}"` : "none"}`,
   );
   if (pack.tags.length) lines.push(`   tags: ${pack.tags.join(", ")}`);
+  if (pack.takenByThem) {
+    lines.push(
+      '   TAKEN BY THE PERSON YOU ARE TALKING TO: they were there, just behind the camera. Tell it as their own moment ("you were with Bee at the park"), not as a report about other people.',
+    );
+  }
   if (pack.people.length) {
     lines.push("2. PEOPLE RECOGNISED IN THE PHOTO (confirmed by face matching):");
     for (const p of pack.people) {
