@@ -66,7 +66,7 @@ export type RecapResult =
       usedFallback: boolean;
     };
 
-// Short enough to follow: a few photos, one sentence each, then straight into the chat.
+// Short enough to follow: a few photos, then straight into the chat.
 const MAX_RECAP_PHOTOS = 4;
 const NEAR_DUPLICATE_MS = 10 * 60_000;
 // The recap belongs to the morning; if it hasn't happened by noon, the day carries on with the old photos.
@@ -181,7 +181,7 @@ async function draftRecap(images: ImageInput[], packs: FactPack[], ctx: GuardCon
         schema: {
           type: "object",
           properties: {
-            lines: { type: "array", items: { type: "string" }, description: "Exactly one sentence per photo, in order." },
+            lines: { type: "array", items: { type: "string" }, description: "Exactly one entry (1-2 short sentences) per photo, in order." },
             chatPhoto: { type: "integer", minimum: 1, maximum: n },
             opener: { type: "string" },
           },
@@ -192,7 +192,7 @@ async function draftRecap(images: ImageInput[], packs: FactPack[], ctx: GuardCon
 ${factsText}
 
 Write:
-- "lines": exactly ${n} entries, one per photo, in time order. Each is ONE short sentence (under 20 words). The first starts with "Yesterday". Link them so it sounds like one story ("Then...", "Later on...", "In the evening..."). The person took these photos themselves, so it is THEIR day: every line is about where "you" were and who "you" were with ("you and Bee sat outside a cafe"), never about what other people did without them. Use only: the time of day, the place, the recognised people, and the activity or objects you can plainly see. Do not guess why anything happened, what happened between photos, or how anyone felt. If a photo is blurry or hard to make out, keep its sentence to the time and place.
+- "lines": exactly ${n} entries, one per photo, in time order. Each is 1-2 short sentences: where you were and who with, then, if there's something nice to notice, one detail you can see. The first starts with "Yesterday". Link them so it sounds like one story ("Then...", "Later on...", "In the evening..."). The person took these photos themselves, so it is THEIR day: every line is about where "you" were and who "you" were with ("you and Bee sat outside a cafe"), never about what other people did without them. Use only: the time of day, the place, the recognised people, and the activity or objects you can plainly see. Do not guess why anything happened, what happened between photos, or how anyone felt. If a photo is blurry or hard to make out, keep its sentence to the time and place.
 - "chatPhoto": the number of the photo that is easiest and nicest to chat about. Prefer one with recognised people who are alive and a clear, pleasant activity. Avoid blurry or empty scenes.
 - "opener": about that photo, one warm sentence noticing something visible, then one easy, playful open question with no right answer (for example "What do you like about the park?"). Never ask who someone is, or whether they remember.
 ${feedback}`,
