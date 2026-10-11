@@ -42,7 +42,17 @@ function templateLine(pack: FactPack, prefix: string): string {
 export type RecapResult =
   | { status: "too_early" | "already" }
   | { status: "empty"; lines: string[] }
-  | { status: "recap"; photos: PhotoView[]; lines: string[]; opener: string; focusPhotoId: string; usedFallback: boolean };
+  | {
+      status: "recap";
+      photos: PhotoView[];
+      lines: string[];
+      summary: string;
+      opener: string;
+      focusPhotoId: string;
+      usedFallback: boolean;
+    };
+
+const MAX_RECAP_PHOTOS = 6;
 
 function isYesterday(photo: Photo, today: Date): boolean {
   if (photo.source === "yesterday") return true;
@@ -52,10 +62,11 @@ function isYesterday(photo: Photo, today: Date): boolean {
   return dayKey(new Date(photo.exif.takenAt)) === dayKey(y);
 }
 
-function pickThree<T>(items: T[]): T[] {
-  if (items.length <= 3) return items;
+/** Spread the picks across the whole day, always keeping the first and last photo. */
+function pickAcrossDay<T>(items: T[], max: number): T[] {
+  if (items.length <= max) return items;
   const last = items.length - 1;
-  return [items[0], items[Math.round(last / 2)], items[last]];
+  return Array.from({ length: max }, (_, i) => items[Math.round((i * last) / (max - 1))]);
 }
 
 export async function morningRecap(force: boolean): Promise<RecapResult> {
@@ -75,53 +86,65 @@ export async function morningRecap(force: boolean): Promise<RecapResult> {
   await saveSettings({ recapLastPlayedDay: today });
   if (!yesterday.length) return { status: "empty", lines: [EMPTY_DAY_LINE] };
 
-  const chosen = pickThree(yesterday);
+  const chosen = pickAcrossDay(yesterday, MAX_RECAP_PHOTOS);
   const packs = chosen.map((p) => buildFactPack(p, people, { includeYear: false }));
-  // Opening photo: most enrolled faces, ties go to the latest photo.
-  let focus = 0;
+  // If Gemini's pick is unusable: most enrolled faces, ties go to the latest photo.
+  let fallbackFocus = 0;
   packs.forEach((pack, i) => {
-    if (pack.people.length >= packs[focus].people.length) focus = i;
+    if (pack.people.length >= packs[fallbackFocus].people.length) fallbackFocus = i;
   });
 
   const images = (await Promise.all(chosen.map(imageOf))).filter((i): i is ImageInput => !!i);
   const factsText = packs.map((pack, i) => renderFacts(pack, `PHOTO ${i + 1}`)).join("\n\n");
   const ctx = guardContext(packs, people);
+  const n = chosen.length;
 
   const { value, usedFallback } = await guarded(
     (feedback) =>
-      generateJson<{ lines: string[]; opener: string }>({
+      generateJson<{ lines: string[]; summary: string; chatPhoto: number; opener: string }>({
         images,
         schema: {
           type: "object",
           properties: {
-            lines: { type: "array", items: { type: "string" }, description: "Exactly one sentence per photo, in order." },
+            lines: { type: "array", items: { type: "string" }, description: "Exactly one entry per photo, in order." },
+            summary: { type: "string" },
+            chatPhoto: { type: "integer", minimum: 1, maximum: n },
             opener: { type: "string" },
           },
-          required: ["lines", "opener"],
+          required: ["lines", "summary", "chatPhoto", "opener"],
         },
-        prompt: `It is the morning. Gently tell the person about yesterday, using these ${chosen.length} photos (images attached in the same order).
+        prompt: `It is the morning. Tell the person the little story of their day yesterday, using these ${n} photos (images attached in the same order). Then pick one photo to chat about.
 
 ${factsText}
 
 Write:
-- "lines": exactly ${chosen.length} short sentences, one per photo, in time order. The first starts with "Yesterday". Use only: the time of day, the place, the recognised people, and the activity or objects you can plainly see. Do not guess why anything happened, what happened between photos, or how anyone felt.
-- "opener": about PHOTO ${focus + 1}, one warm sentence noticing something visible, then one easy open question with no right answer (for example "What do you like about the park?"). Never ask who someone is, or whether they remember.
+- "lines": exactly ${n} entries, one per photo, in time order. Each is 1-2 short sentences. The first starts with "Yesterday". Link them so it sounds like one gentle story ("Then...", "Later on...", "In the evening..."). Use only: the time of day, the place, the recognised people, and the activity or objects you can plainly see. Do not guess why anything happened, what happened between photos, or how anyone felt.
+- "summary": one short warm sentence that wraps up the day, about the day itself. No new facts and no one's feelings (for example "What a full day that was.").
+- "chatPhoto": the number of the photo that is easiest and nicest to chat about. Prefer one with recognised people who are alive and a clear, pleasant activity. Avoid blurry or empty scenes.
+- "opener": about that photo, one warm sentence noticing something visible, then one easy, playful open question with no right answer (for example "What do you like about the park?"). Never ask who someone is, or whether they remember.
 ${feedback ?? ""}`,
       }),
-    (out) => [...out.lines, out.opener],
+    (out) => [...out.lines, out.summary, out.opener],
     ctx,
     () => ({
       lines: packs.map((pack, i) => templateLine(pack, i === 0 ? "Yesterday" : "Later")),
+      summary: "That was yesterday.",
+      chatPhoto: fallbackFocus + 1,
       opener: "That looks like a nice moment. What do you like about this one?",
     }),
   );
 
+  const lines = value.lines.slice(0, n);
+  while (lines.length < n) lines.push(templateLine(packs[lines.length], "Later"));
+  const pick = Number.isInteger(value.chatPhoto) && value.chatPhoto >= 1 && value.chatPhoto <= n ? value.chatPhoto - 1 : fallbackFocus;
+
   return {
     status: "recap",
     photos: chosen.map((p) => toView(p, people)),
-    lines: value.lines.slice(0, chosen.length),
+    lines,
+    summary: value.summary,
     opener: value.opener,
-    focusPhotoId: chosen[focus].id,
+    focusPhotoId: chosen[pick].id,
     usedFallback,
   };
 }
