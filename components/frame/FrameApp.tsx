@@ -11,11 +11,10 @@ type Turn = { role: "companion" | "person"; text: string; interrupted?: boolean 
 type Recap =
   | { status: "too_early" | "already" | "missed" }
   | { status: "empty"; lines: string[] }
-  | { status: "recap"; photos: PhotoView[]; lines: string[]; summary: string; opener: string; focusPhotoId: string };
+  | { status: "recap"; photos: PhotoView[]; lines: string[]; opener: string; focusPhotoId: string };
 
 type Mode =
   | { kind: "idle" }
-  /** `active` is the photo being told; -1 shows the whole day together for the wrap-up line. */
   | { kind: "recap"; photos: PhotoView[]; lines: string[]; active: number; caption: string }
   | { kind: "browse"; caption: string }
   | { kind: "chat"; photo: PhotoView; turns: Turn[]; thinking: boolean; listening: boolean; live: boolean; caption?: string };
@@ -304,10 +303,6 @@ export default function FrameApp() {
       setMode({ kind: "recap", photos: recap.photos, lines: recap.lines, active: i, caption: recap.lines[i] });
       await speak(recap.lines[i]);
     }
-    if (recap.summary) {
-      setMode({ kind: "recap", photos: recap.photos, lines: recap.lines, active: -1, caption: recap.summary });
-      await speak(recap.summary);
-    }
     const focus = recap.photos.find((p) => p.id === recap.focusPhotoId) ?? recap.photos.at(-1)!;
     await startChat(focus, recap.opener);
   }
@@ -369,7 +364,7 @@ export default function FrameApp() {
         <div className="flex h-full flex-col items-center justify-center gap-6 px-8 py-8">
           {mode.photos.length === 0 ? (
             <div className="breathe h-6 w-6 rounded-full bg-accent-soft" />
-          ) : mode.active >= 0 ? (
+          ) : (
             <>
               <div className="relative min-h-0 w-full flex-1">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -383,16 +378,6 @@ export default function FrameApp() {
               <div className="flex gap-2">
                 {mode.photos.map((p, i) => (
                   <span key={p.id} className={`h-2 w-2 rounded-full transition ${i === mode.active ? "bg-accent-soft" : "bg-white/25"}`} />
-                ))}
-              </div>
-              <Caption text={mode.caption} />
-            </>
-          ) : (
-            <>
-              <div className="grid w-full max-w-6xl grid-cols-3 gap-4">
-                {mode.photos.map((p) => (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img key={p.id} src={p.url} alt="" className="fade-in aspect-[4/3] w-full rounded-2xl object-cover shadow-xl" />
                 ))}
               </div>
               <Caption text={mode.caption} />

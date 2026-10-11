@@ -2,7 +2,7 @@ import "server-only";
 import { dayKey, getProfile, getSettings, now, saveSettings } from "./config";
 import { markTalkedAbout, moveOnDayPhotos, recapDayOf } from "./dayPhotos";
 import { db } from "./db";
-import { buildFactPack, deceasedNames, renderFacts, type FactPack } from "./facts";
+import { buildFactPack, deceasedNames, renderFacts, timeOfDay, type FactPack } from "./facts";
 import { generateJson, PERSONA, type ImageInput } from "./gemini";
 import { checkText, guarded, namesInNote, type GuardContext } from "./guard";
 import { toView, type PhotoView } from "./photoView";
@@ -25,17 +25,31 @@ function guardContext(packs: FactPack[], people: Person[]): GuardContext {
   return { allowedNames: [...allowed], enrolledNames, deceasedNames: deceasedNames(packs) };
 }
 
-function peoplePhrase(pack: FactPack): string {
+function companions(pack: FactPack): string {
   const names = pack.people.map((p) => p.name);
-  if (pack.unknownFaces) names.push("someone with you");
-  if (!names.length) return "";
-  if (names.length === 1) return ` with ${names[0]}`;
-  return ` with ${names.slice(0, -1).join(", ")} and ${names.at(-1)}`;
+  if (pack.unknownFaces) names.push(names.length ? "someone else" : "someone");
+  if (names.length <= 1) return names[0] ?? "";
+  return `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`;
 }
 
-function templateLine(pack: FactPack, prefix: string): string {
-  const where = pack.place ? (pack.place.kind === "saved" ? ` at ${pack.place.label.toLowerCase() === "home" ? "home" : pack.place.label}` : ` in ${pack.place.label}`) : "";
-  return `${prefix}${pack.timeOfDay ? ` ${pack.timeOfDay}` : ""} you were${where}${peoplePhrase(pack) || " out and about"}.`;
+/** Safe line built only from the facts, told from behind the camera like the generated ones. */
+function templateLine(pack: FactPack, index: number): string {
+  const lead = index === 0 ? `Yesterday${pack.timeOfDay ? ` ${pack.timeOfDay}` : ""}` : `Then${pack.timeOfDay ? `, ${pack.timeOfDay}` : ""}`;
+  const where = pack.place
+    ? pack.place.kind === "saved"
+      ? ` at ${pack.place.label.toLowerCase() === "home" ? "home" : pack.place.label}`
+      : ` in ${pack.place.label}`
+    : "";
+  const who = companions(pack);
+  const body = where || who ? `you were${where}${who ? ` with ${who}` : ""}` : "you took this photo";
+  return `${lead}, ${body}.`;
+}
+
+function templateOpener(pack: FactPack): string {
+  const living = pack.people.filter((p) => !p.deceased);
+  return living.length === 1
+    ? `Here's ${living[0].name}. What do you like about this one?`
+    : "That looks like a nice moment. What do you like about this one?";
 }
 
 // ---------- Mode 1: yesterday ----------
@@ -47,13 +61,14 @@ export type RecapResult =
       status: "recap";
       photos: PhotoView[];
       lines: string[];
-      summary: string;
       opener: string;
       focusPhotoId: string;
       usedFallback: boolean;
     };
 
-const MAX_RECAP_PHOTOS = 6;
+// Short enough to follow: a few photos, one sentence each, then straight into the chat.
+const MAX_RECAP_PHOTOS = 4;
+const NEAR_DUPLICATE_MS = 10 * 60_000;
 // The recap belongs to the morning; if it hasn't happened by noon, the day carries on with the old photos.
 const RECAP_FROM_HOUR = 7;
 const RECAP_UNTIL_HOUR = 12;
@@ -61,11 +76,35 @@ const isMorning = (d: Date) => d.getHours() >= RECAP_FROM_HOUR && d.getHours() <
 
 const isYesterday = (photo: Photo, today: Date) => recapDayOf(photo) === dayKey(today);
 
-/** Spread the picks across the whole day, always keeping the first and last photo. */
-function pickAcrossDay<T>(items: T[], max: number): T[] {
-  if (items.length <= max) return items;
-  const last = items.length - 1;
-  return Array.from({ length: max }, (_, i) => items[Math.round((i * last) / (max - 1))]);
+const takenMs = (p: Photo) => Date.parse(p.exif?.takenAt ?? p.uploadedAt);
+
+/** Recognised people count most, then a carer note, then any face at all. */
+function recapScore(p: Photo): number {
+  const matches = p.faceMatches ?? [];
+  return 3 * matches.filter((m) => m.personId).length + (p.note ? 2 : 0) + (matches.some((m) => !m.personId) ? 1 : 0);
+}
+
+/**
+ * Picks by content, not position: the best photo from each part of the day first, then the next best of the rest.
+ * Near-duplicates (taken within a few minutes of a pick) and photos whose image can't be loaded are skipped, so
+ * every description always has its own image.
+ */
+async function pickRecapPhotos(photos: Photo[]): Promise<{ photo: Photo; image: ImageInput }[]> {
+  const ranked = [...photos].sort((a, b) => recapScore(b) - recapScore(a) || takenMs(a) - takenMs(b));
+  const bestOfEachPart = new Map<string, Photo>();
+  for (const p of ranked) {
+    const part = timeOfDay(new Date(takenMs(p)));
+    if (!bestOfEachPart.has(part)) bestOfEachPart.set(part, p);
+  }
+  const lead = [...bestOfEachPart.values()];
+  const picked: { photo: Photo; image: ImageInput }[] = [];
+  for (const photo of [...lead, ...ranked.filter((p) => !lead.includes(p))]) {
+    if (picked.length >= MAX_RECAP_PHOTOS) break;
+    if (picked.some((x) => Math.abs(takenMs(x.photo) - takenMs(photo)) < NEAR_DUPLICATE_MS)) continue;
+    const image = await imageOf(photo);
+    if (image) picked.push({ photo, image });
+  }
+  return picked.sort((a, b) => takenMs(a.photo) - takenMs(b.photo));
 }
 
 /** Whether the frame should greet them with the morning invitation right now. */
@@ -92,14 +131,13 @@ export async function morningRecap(force: boolean): Promise<RecapResult> {
   }
 
   const [photos, people] = await Promise.all([db.list<Photo>("photos"), db.list<Person>("people")]);
-  const yesterday = photos
-    .filter((p) => isYesterday(p, current))
-    .sort((a, b) => (a.exif?.takenAt ?? a.uploadedAt).localeCompare(b.exif?.takenAt ?? b.uploadedAt));
+  const yesterday = photos.filter((p) => isYesterday(p, current));
 
   await saveSettings({ recapLastPlayedDay: today });
-  if (!yesterday.length) return { status: "empty", lines: [EMPTY_DAY_LINE] };
+  const picked = yesterday.length ? await pickRecapPhotos(yesterday) : [];
+  if (!picked.length) return { status: "empty", lines: [EMPTY_DAY_LINE] };
 
-  const chosen = pickAcrossDay(yesterday, MAX_RECAP_PHOTOS);
+  const chosen = picked.map((x) => x.photo);
   const packs = chosen.map((p) => buildFactPack(p, people, { includeYear: false }));
   // If Gemini's pick is unusable: most enrolled faces, ties go to the latest photo.
   let fallbackFocus = 0;
@@ -107,59 +145,66 @@ export async function morningRecap(force: boolean): Promise<RecapResult> {
     if (pack.people.length >= packs[fallbackFocus].people.length) fallbackFocus = i;
   });
 
-  const images = (await Promise.all(chosen.map(imageOf))).filter((i): i is ImageInput => !!i);
-  const factsText = packs.map((pack, i) => renderFacts(pack, `PHOTO ${i + 1}`)).join("\n\n");
   const ctx = guardContext(packs, people);
   const n = chosen.length;
+  const draft = await draftRecap(picked.map((x) => x.image), packs, ctx);
 
-  const { value, usedFallback } = await guarded(
-    (feedback) =>
-      generateJson<{ lines: string[]; summary: string; chatPhoto: number; opener: string }>({
-        images,
-        schema: {
-          type: "object",
-          properties: {
-            lines: { type: "array", items: { type: "string" }, description: "Exactly one entry per photo, in order." },
-            summary: { type: "string" },
-            chatPhoto: { type: "integer", minimum: 1, maximum: n },
-            opener: { type: "string" },
-          },
-          required: ["lines", "summary", "chatPhoto", "opener"],
-        },
-        prompt: `It is the morning. Tell the person the little story of their own day yesterday, using these ${n} photos they took (images attached in the same order). Then pick one photo to chat about.
-
-${factsText}
-
-Write:
-- "lines": exactly ${n} entries, one per photo, in time order. Each is 1-2 short sentences. The first starts with "Yesterday". Link them so it sounds like one gentle story ("Then...", "Later on...", "In the evening..."). The person took these photos themselves, so it is THEIR day: every line is about where "you" were and who "you" were with ("you and Bee sat outside a cafe"), never about what other people did without them. Use only: the time of day, the place, the recognised people, and the activity or objects you can plainly see. Do not guess why anything happened, what happened between photos, or how anyone felt.
-- "summary": one short warm sentence that wraps up the day, about the day itself. No new facts and no one's feelings (for example "What a full day that was.").
-- "chatPhoto": the number of the photo that is easiest and nicest to chat about. Prefer one with recognised people who are alive and a clear, pleasant activity. Avoid blurry or empty scenes.
-- "opener": about that photo, one warm sentence noticing something visible, then one easy, playful open question with no right answer (for example "What do you like about the park?"). Never ask who someone is, or whether they remember.
-${feedback ?? ""}`,
-      }),
-    (out) => [...out.lines, out.summary, out.opener],
-    ctx,
-    () => ({
-      lines: packs.map((pack, i) => templateLine(pack, i === 0 ? "Yesterday" : "Later")),
-      summary: "That was yesterday.",
-      chatPhoto: fallbackFocus + 1,
-      opener: "That looks like a nice moment. What do you like about this one?",
-    }),
-  );
-
-  const lines = value.lines.slice(0, n);
-  while (lines.length < n) lines.push(templateLine(packs[lines.length], "Later"));
-  const pick = Number.isInteger(value.chatPhoto) && value.chatPhoto >= 1 && value.chatPhoto <= n ? value.chatPhoto - 1 : fallbackFocus;
+  // Keep every line that passes the checks; only the ones that don't fall back to the safe template.
+  const safe = (text: string | undefined): text is string => !!text?.trim() && !checkText(text, ctx).length;
+  const lines = packs.map((pack, i) => (safe(draft?.lines[i]) ? draft.lines[i] : templateLine(pack, i)));
+  const validPick = !!draft && Number.isInteger(draft.chatPhoto) && draft.chatPhoto >= 1 && draft.chatPhoto <= n;
+  const pick = validPick ? draft.chatPhoto - 1 : fallbackFocus;
+  const opener = validPick && safe(draft.opener) ? draft.opener : templateOpener(packs[pick]);
 
   return {
     status: "recap",
     photos: chosen.map((p) => toView(p, people)),
     lines,
-    summary: value.summary,
-    opener: value.opener,
+    opener,
     focusPhotoId: chosen[pick].id,
-    usedFallback,
+    usedFallback: lines.some((l, i) => l !== draft?.lines[i]) || opener !== draft?.opener,
   };
+}
+
+type RecapDraft = { lines: string[]; chatPhoto: number; opener: string };
+
+/** Up to two tries; the second gets the first try's rule breaks as feedback. Returns the last draft it got. */
+async function draftRecap(images: ImageInput[], packs: FactPack[], ctx: GuardContext): Promise<RecapDraft | null> {
+  const n = packs.length;
+  const factsText = packs.map((pack, i) => renderFacts(pack, `PHOTO ${i + 1}`)).join("\n\n");
+  let draft: RecapDraft | null = null;
+  let feedback = "";
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      draft = await generateJson<RecapDraft>({
+        images,
+        schema: {
+          type: "object",
+          properties: {
+            lines: { type: "array", items: { type: "string" }, description: "Exactly one sentence per photo, in order." },
+            chatPhoto: { type: "integer", minimum: 1, maximum: n },
+            opener: { type: "string" },
+          },
+          required: ["lines", "chatPhoto", "opener"],
+        },
+        prompt: `It is the morning. Tell the person a short, gentle story of their own day yesterday, using these ${n} photos they took (images attached in the same order). Then pick one photo to chat about.
+
+${factsText}
+
+Write:
+- "lines": exactly ${n} entries, one per photo, in time order. Each is ONE short sentence (under 20 words). The first starts with "Yesterday". Link them so it sounds like one story ("Then...", "Later on...", "In the evening..."). The person took these photos themselves, so it is THEIR day: every line is about where "you" were and who "you" were with ("you and Bee sat outside a cafe"), never about what other people did without them. Use only: the time of day, the place, the recognised people, and the activity or objects you can plainly see. Do not guess why anything happened, what happened between photos, or how anyone felt. If a photo is blurry or hard to make out, keep its sentence to the time and place.
+- "chatPhoto": the number of the photo that is easiest and nicest to chat about. Prefer one with recognised people who are alive and a clear, pleasant activity. Avoid blurry or empty scenes.
+- "opener": about that photo, one warm sentence noticing something visible, then one easy, playful open question with no right answer (for example "What do you like about the park?"). Never ask who someone is, or whether they remember.
+${feedback}`,
+      });
+    } catch {
+      continue;
+    }
+    const problems = [...draft.lines, draft.opener].flatMap((t) => checkText(t, ctx));
+    if (!problems.length) break;
+    feedback = `Your previous answer broke these rules: ${problems.join("; ")}. Rewrite it following the rules exactly.`;
+  }
+  return draft;
 }
 
 // ---------- Mode 2: a tapped photo ----------
