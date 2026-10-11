@@ -54,7 +54,8 @@ export default function DemoTab() {
         <h2 className="mb-3 text-xl font-bold">Demo clock</h2>
         <p className="mb-3 text-sm opacity-70">
           Companion time is now <strong>{nowIso ? new Date(nowIso).toLocaleString() : "..."}</strong>
-          {fake ? " (demo clock)" : " (real clock)"}. The morning recap plays once per day, on the first use after 7:00.
+          {fake ? " (demo clock)" : " (real clock)"}. The morning recap plays once per day, on the first use between 7:00 and noon. After noon the frame
+          just shows the old photos.
         </p>
         <div className="flex flex-wrap items-end gap-2">
           <Field label="Set companion time">

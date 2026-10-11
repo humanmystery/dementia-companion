@@ -9,7 +9,7 @@ import { canListen, listenOnce, speak, stopSpeaking } from "@/lib/client/voice";
 type Turn = { role: "companion" | "person"; text: string; interrupted?: boolean };
 
 type Recap =
-  | { status: "too_early" | "already" }
+  | { status: "too_early" | "already" | "missed" }
   | { status: "empty"; lines: string[] }
   | { status: "recap"; photos: PhotoView[]; lines: string[]; summary: string; opener: string; focusPhotoId: string };
 
@@ -312,7 +312,7 @@ export default function FrameApp() {
     await startChat(focus, recap.opener);
   }
 
-  /** First touch of the day after 7:00 plays yesterday's recap; otherwise a tap opens a chat about the photo. */
+  /** First touch between 7:00 and noon plays yesterday's recap; otherwise a tap opens a chat about the photo. */
   async function onTapSlideshow() {
     const current = photos[slide];
     stopSpeaking();

@@ -40,7 +40,7 @@ function templateLine(pack: FactPack, prefix: string): string {
 // ---------- Mode 1: yesterday ----------
 
 export type RecapResult =
-  | { status: "too_early" | "already" }
+  | { status: "too_early" | "already" | "missed" }
   | { status: "empty"; lines: string[] }
   | {
       status: "recap";
@@ -53,6 +53,10 @@ export type RecapResult =
     };
 
 const MAX_RECAP_PHOTOS = 6;
+// The recap belongs to the morning; if it hasn't happened by noon, the day carries on with the old photos.
+const RECAP_FROM_HOUR = 7;
+const RECAP_UNTIL_HOUR = 12;
+const isMorning = (d: Date) => d.getHours() >= RECAP_FROM_HOUR && d.getHours() < RECAP_UNTIL_HOUR;
 
 function isYesterday(photo: Photo, today: Date): boolean {
   if (photo.source === "yesterday") return true;
@@ -72,12 +76,10 @@ function pickAcrossDay<T>(items: T[], max: number): T[] {
 /** Whether the frame should greet them with the morning invitation right now. */
 export async function recapStatus(): Promise<{ due: boolean; greeting: string; hasYesterday: boolean }> {
   const [current, settings, profile, photos] = await Promise.all([now(), getSettings(), getProfile(), db.list<Photo>("photos")]);
-  const h = current.getHours();
   const name = profile.name?.trim();
-  const greeting = `${h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening"}${name ? `, ${name}` : ""}`;
   return {
-    due: h >= 7 && settings.recapLastPlayedDay !== dayKey(current),
-    greeting,
+    due: isMorning(current) && settings.recapLastPlayedDay !== dayKey(current),
+    greeting: `Good morning${name ? `, ${name}` : ""}`,
     hasYesterday: photos.some((p) => isYesterday(p, current)),
   };
 }
@@ -87,7 +89,8 @@ export async function morningRecap(force: boolean): Promise<RecapResult> {
   const settings = await getSettings();
   const today = dayKey(current);
   if (!force) {
-    if (current.getHours() < 7) return { status: "too_early" };
+    if (current.getHours() < RECAP_FROM_HOUR) return { status: "too_early" };
+    if (current.getHours() >= RECAP_UNTIL_HOUR) return { status: "missed" };
     if (settings.recapLastPlayedDay === today) return { status: "already" };
   }
 

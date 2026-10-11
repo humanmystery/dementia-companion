@@ -10,7 +10,7 @@ export async function GET() {
   }
 }
 
-/** POST { force?: boolean }. Without force, plays once per day and only after 7:00 on the demo clock. */
+/** POST { force?: boolean }. Without force, plays once per day, between 7:00 and noon on the demo clock. */
 export async function POST(req: Request) {
   try {
     const { force } = (await req.json().catch(() => ({}))) as { force?: boolean };
