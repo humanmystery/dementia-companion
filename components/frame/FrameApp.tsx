@@ -20,11 +20,8 @@ type Mode =
   | { kind: "chat"; photo: PhotoView; turns: Turn[]; thinking: boolean; listening: boolean; live: boolean; caption?: string };
 
 const SLIDE_MS = 9000;
-/** After this many replies from them, ask for a gentle closing line (no new question) instead of cutting with the stock goodbye. */
-const MAX_PERSON_TURNS = 5;
-/** After this many replies, a long silence also asks for a gentle closing rather than the stock goodbye. */
-const SOFT_CLOSE_AFTER = 4;
-const SILENCE_MS = 30_000;
+/** End the chat only after a full minute of quiet (or when they tap Done). No turn limit. */
+const SILENCE_MS = 60_000;
 const INVITE_VISIBLE_MS = 3 * 60_000;
 const GOODBYE = "I'll let you rest now. Thank you for looking with me.";
 
@@ -163,54 +160,51 @@ export default function FrameApp() {
     [backToSlideshow],
   );
 
-  /** Closing line that refers to what they said; falls back to the stock goodbye if the request fails. */
-  const gentleClose = useCallback(
-    async (reason: "turns" | "silence") => {
-      const m = modeRef.current;
-      if (m.kind !== "chat" || wrappingUp.current) return;
-      wrappingUp.current = true;
-      clearSilence();
-      const live = liveRef.current;
-      if (live) {
-        await live.drained();
-        live.stop();
-      }
-      setMode((cur) => (cur.kind === "chat" ? { ...cur, thinking: true, listening: false, live: false, caption: undefined } : cur));
-      try {
-        const { reply } = await post<{ reply: string }>("/api/story/reply", {
-          photoId: m.photo.id,
-          history: m.turns,
-          closing: true,
-        });
-        await endChat(reply, reason);
-      } catch {
-        await endChat(GOODBYE, reason);
-      }
-    },
-    [endChat],
-  );
+  /** After a minute of quiet, a closing line that refers to what they said; stock goodbye if that fails or they never spoke. */
+  const closeOnSilence = useCallback(async () => {
+    const m = modeRef.current;
+    if (m.kind !== "chat" || wrappingUp.current) return;
+    const personTurns = m.turns.filter((t) => t.role === "person").length;
+    if (!personTurns) {
+      await endChat(GOODBYE, "silence");
+      return;
+    }
+    wrappingUp.current = true;
+    clearSilence();
+    const live = liveRef.current;
+    if (live) {
+      await live.drained();
+      live.stop();
+    }
+    setMode((cur) => (cur.kind === "chat" ? { ...cur, thinking: true, listening: false, live: false, caption: undefined } : cur));
+    try {
+      const { reply } = await post<{ reply: string }>("/api/story/reply", {
+        photoId: m.photo.id,
+        history: m.turns,
+        closing: true,
+      });
+      await endChat(reply, "silence");
+    } catch {
+      await endChat(GOODBYE, "silence");
+    }
+  }, [endChat]);
 
   const armLiveSilence = useCallback(() => {
     clearSilence();
     silenceTimer.current = setTimeout(() => {
       if (!liveRef.current || wrappingUp.current) return;
-      const m = modeRef.current;
-      const personTurns = m.kind === "chat" ? m.turns.filter((t) => t.role === "person").length : 0;
-      if (personTurns >= SOFT_CLOSE_AFTER) void gentleClose("silence");
-      else void endChat(GOODBYE, "silence");
+      void closeOnSilence();
     }, SILENCE_MS);
-  }, [endChat, gentleClose]);
+  }, [closeOnSilence]);
 
   const armSilence = useCallback(() => {
     clearSilence();
     silenceTimer.current = setTimeout(() => {
       const m = modeRef.current;
       if (m.kind !== "chat" || m.listening || m.thinking || wrappingUp.current) return;
-      const personTurns = m.turns.filter((t) => t.role === "person").length;
-      if (personTurns >= SOFT_CLOSE_AFTER) void gentleClose("silence");
-      else void endChat();
+      void closeOnSilence();
     }, SILENCE_MS);
-  }, [endChat, gentleClose]);
+  }, [closeOnSilence]);
 
   const listenRef = useRef<(() => Promise<void>) | null>(null);
 
@@ -245,8 +239,7 @@ export default function FrameApp() {
         const next = { ...m, turns: [...m.turns, ...turns] };
         modeRef.current = next;
         setMode(next);
-        if (next.turns.filter((t) => t.role === "person").length >= MAX_PERSON_TURNS) void gentleClose("turns");
-        else void liveRef.current?.drained().then(() => liveRef.current && !wrappingUp.current && armLiveSilence());
+        void liveRef.current?.drained().then(() => liveRef.current && !wrappingUp.current && armLiveSilence());
       },
       onDrop: () => {
         liveRef.current = null;
@@ -256,7 +249,7 @@ export default function FrameApp() {
         continueWithoutLive();
       },
     }),
-    [armLiveSilence, continueWithoutLive, gentleClose],
+    [armLiveSilence, continueWithoutLive],
   );
 
   const startChat = useCallback(
@@ -308,13 +301,10 @@ export default function FrameApp() {
         return;
       }
       const turns: Turn[] = [...m.turns, { role: "person", text }];
-      const personTurns = turns.filter((t) => t.role === "person").length;
-      const closing = personTurns >= MAX_PERSON_TURNS;
       setMode({ ...m, turns, thinking: true, listening: false });
       try {
-        const { reply } = await post<{ reply: string }>("/api/story/reply", { photoId: m.photo.id, history: turns, closing });
-        if (closing) await endChat(reply, "turns");
-        else await companionSays(reply);
+        const { reply } = await post<{ reply: string }>("/api/story/reply", { photoId: m.photo.id, history: turns, closing: false });
+        await companionSays(reply);
       } catch {
         await companionSays("Sorry, I didn't quite catch that. It's a lovely photo though.");
       }
