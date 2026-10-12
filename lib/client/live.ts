@@ -18,6 +18,8 @@ export type LiveChat = {
   startMic(): Promise<void>;
   /** Resolves once everything received so far has finished playing. */
   drained(): Promise<void>;
+  /** Hard-stop Live audio and the mic. Further Live audio is ignored. */
+  stop(): void;
   end(reason: string, goodbye?: string): void;
 };
 
@@ -73,8 +75,11 @@ function createPlayer() {
   const ctx = new AudioContext({ sampleRate: PLAY_RATE });
   const playing = new Set<AudioBufferSourceNode>();
   let nextAt = 0;
+  let lastAudioAt = 0;
+  let closed = false;
   return {
     play(b64: string) {
+      if (closed) return;
       if (ctx.state === "suspended") void ctx.resume();
       const samples = pcm16ToFloat(b64);
       if (!samples.length) return;
@@ -86,20 +91,33 @@ function createPlayer() {
       nextAt = Math.max(nextAt, ctx.currentTime + 0.05);
       src.start(nextAt);
       nextAt += buf.duration;
+      lastAudioAt = Date.now();
       playing.add(src);
       src.onended = () => playing.delete(src);
     },
     stop() {
-      for (const src of playing) src.stop();
+      for (const src of playing) {
+        try {
+          src.stop();
+        } catch {
+          // already stopped
+        }
+      }
       playing.clear();
       nextAt = 0;
     },
-    drained: () =>
+    /** Resolves once playback is empty and no new audio has arrived for a short quiet spell. */
+    drained: (quietMs = 400) =>
       new Promise<void>((resolve) => {
-        const check = () => (playing.size === 0 ? resolve() : setTimeout(check, 150));
+        const check = () => {
+          if (closed || (playing.size === 0 && Date.now() - lastAudioAt >= quietMs)) resolve();
+          else setTimeout(check, 100);
+        };
+        if (!lastAudioAt) lastAudioAt = Date.now();
         check();
       }),
     close() {
+      closed = true;
       this.stop();
       void ctx.close();
     },
@@ -181,6 +199,7 @@ export async function connectLive(photoId: string, opener: string, events: LiveE
   }
 
   ws.onmessage = (e) => {
+    if (ended) return;
     const msg = JSON.parse(e.data as string) as RelayMessage;
     if (msg.type === "audio") player.play(msg.data);
     else if (msg.type === "caption") events.onCaption(msg.text);
@@ -199,12 +218,22 @@ export async function connectLive(photoId: string, opener: string, events: LiveE
     async startMic() {
       if (ended) return;
       stopMic = await startMicStream((data) => {
-        if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: "audio", data }));
+        if (!ended && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: "audio", data }));
       });
     },
     drained: () => player.drained(),
+    stop() {
+      stopMic?.();
+      stopMic = null;
+      player.stop();
+    },
     end(reason, goodbye) {
       if (ended) return;
+      // Stop audio first so Cloud TTS never overlaps with a leftover Live chunk.
+      stopMic?.();
+      stopMic = null;
+      player.stop();
+      ended = true;
       if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: "end", reason, goodbye }));
       cleanup();
     },

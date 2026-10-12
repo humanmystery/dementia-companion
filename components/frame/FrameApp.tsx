@@ -134,19 +134,25 @@ export default function FrameApp() {
     void checkMorning();
   }, [checkMorning]);
 
-  /** Ends any chat the same way: the goodbye in the usual voice, then back to the slideshow. */
+  /**
+   * Ends any chat the same way: one goodbye in the usual Cloud TTS voice, then back to the slideshow.
+   * Live is always hard-stopped first so its voice never overlaps the goodbye.
+   */
   const endChat = useCallback(
     async (line = GOODBYE, reason = "done") => {
       clearSilence();
       const live = liveRef.current;
       liveRef.current = null;
       if (live) {
+        // Let the last Live reply finish when wrapping up after five exchanges, then mute Live
+        // before the Cloud TTS goodbye so the two voices never speak at once.
         if (reason === "turns") await live.drained();
+        live.stop();
         live.end(reason, line);
       }
       setMode((m) =>
         m.kind === "chat"
-          ? { ...m, turns: [...m.turns, { role: "companion", text: line }], thinking: false, listening: false, caption: undefined }
+          ? { ...m, turns: [...m.turns, { role: "companion", text: line }], thinking: false, listening: false, live: false, caption: undefined }
           : m,
       );
       await speak(line);
