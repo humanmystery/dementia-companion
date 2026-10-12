@@ -11,7 +11,7 @@ type SessionView = LiveSession & { photoUrl: string };
 const ENDINGS: Record<string, string> = {
   done: "They tapped Done",
   silence: "Ended after a quiet spell",
-  turns: "Wrapped up after five exchanges",
+  turns: "Wrapped up gently",
   live_dropped: "Connection dropped, carried on with tap-to-talk",
   frame_closed: "Frame closed",
   left: "Left the chat",

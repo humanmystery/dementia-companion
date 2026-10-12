@@ -45,11 +45,31 @@ function templateLine(pack: FactPack, index: number): string {
   return `${lead}, ${body}.`;
 }
 
-function templateOpener(pack: FactPack): string {
+/** Safe opener built only from the fact pack (no invented names or places). */
+function fallbackOpener(pack: FactPack): string {
   const living = pack.people.filter((p) => !p.deceased);
-  return living.length === 1
-    ? `Here's ${living[0].name}. What do you like about this one?`
-    : "That looks like a nice moment. What do you like about this one?";
+  const deceasedOnly = pack.people.length === 1 && pack.people[0].deceased ? pack.people[0] : null;
+  const placeLabel = pack.place
+    ? pack.place.kind === "saved" && pack.place.label.toLowerCase() === "home"
+      ? "home"
+      : pack.place.label
+    : null;
+  const prep = pack.place?.kind === "saved" ? "at" : "in";
+
+  if (living.length === 1 && placeLabel) {
+    return `Here's ${living[0].name} ${prep} ${placeLabel}. What do you like about this one?`;
+  }
+  if (living.length === 1) return `Here's ${living[0].name}. What do you like about this one?`;
+  if (deceasedOnly && placeLabel) {
+    return `A lovely photo of ${deceasedOnly.name} ${prep} ${placeLabel}. What do you like about this one?`;
+  }
+  if (deceasedOnly) return `A lovely photo of ${deceasedOnly.name}. What do you like about this one?`;
+  if (placeLabel) return `This one looks like ${placeLabel}. What do you like about it?`;
+  return "What a lovely photo. What catches your eye in this one?";
+}
+
+function templateOpener(pack: FactPack): string {
+  return fallbackOpener(pack);
 }
 
 // ---------- Mode 1: yesterday ----------
@@ -246,12 +266,7 @@ ${feedback ?? ""}`,
       }),
     (out) => [out.opener],
     ctx,
-    () => ({
-      opener:
-        pack.people.length === 1 && !pack.people[0].deceased
-          ? `Here's ${pack.people[0].name}. What do you like about this one?`
-          : "What a lovely photo. What catches your eye in this one?",
-    }),
+    () => ({ opener: fallbackOpener(pack) }),
   );
   return { opener: value.opener, usedFallback };
 }
@@ -283,16 +298,22 @@ ${transcript}
 
 ${
   closing
-    ? 'Write "reply": one warm closing sentence that thanks them for sharing and ends the chat. No question.'
+    ? 'Write "reply": one warm closing sentence that gently refers to something they shared in the conversation (their words, not a new guess), thanks them for looking with you, and ends the chat. No question.'
     : 'Write "reply": 1-2 short sentences that respond to what they said, then at most one easy open question.'
 }
 ${feedback ?? ""}`,
       }),
     (out) => [out.reply],
     ctx,
-    () => ({
-      reply: closing ? "Thank you for sharing that with me. It's a lovely photo." : "That sounds lovely. Tell me a little more?",
-    }),
+    () => {
+      const lastSaid = [...history].reverse().find((t) => t.role === "person")?.text?.trim();
+      const hint = lastSaid && lastSaid.length < 80 ? ` I liked hearing about that.` : "";
+      return {
+        reply: closing
+          ? `Thank you for sharing that with me.${hint} It's a lovely photo.`
+          : "That sounds lovely. Tell me a little more?",
+      };
+    },
   );
   return { reply: value.reply, usedFallback };
 }
