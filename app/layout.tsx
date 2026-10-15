@@ -5,7 +5,7 @@ import "./globals.css";
 const nunito = Nunito({ variable: "--font-nunito", subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Companion",
+  title: "Forget Me Not",
   description: "A friendly life companion for early and mid-stage dementia.",
   manifest: "/manifest.webmanifest",
 };

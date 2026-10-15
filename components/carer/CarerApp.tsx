@@ -28,7 +28,7 @@ export default function CarerApp() {
       <header className="mb-6 flex flex-wrap items-end justify-between gap-3">
         <div>
           <Link href="/" className="text-sm opacity-60">
-            Companion
+            Forget Me Not
           </Link>
           <h1 className="text-3xl font-bold">Carer setup</h1>
           <p className="opacity-70">Everything the companion says comes from what you confirm here.</p>

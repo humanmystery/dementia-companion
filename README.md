@@ -1,4 +1,4 @@
-# Companion: AI Builder Cup prototype
+# Forget Me Not: AI Builder Cup prototype
 
 A friendly life companion for people living with early and mid-stage dementia, and support for their family.
 One Next.js app with three surfaces, sharing one content store:

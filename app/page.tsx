@@ -22,7 +22,7 @@ export default function Home() {
   return (
     <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col justify-center gap-8 px-6 py-16">
       <div>
-        <h1 className="text-4xl font-bold">Companion</h1>
+        <h1 className="text-4xl font-bold">Forget Me Not</h1>
         <p className="mt-2 text-lg opacity-80">
           A friendly life companion for people living with early and mid-stage dementia, and support for the family
           around them.
