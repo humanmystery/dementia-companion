@@ -9,7 +9,7 @@ export function Button({
 }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: "primary" | "ghost" | "danger" }) {
   const styles = {
     primary: "bg-accent text-white hover:brightness-105",
-    ghost: "bg-white/70 ring-1 ring-black/10 hover:bg-white",
+    ghost: "bg-white/70 ring-1 ring-accent/20 hover:bg-white",
     danger: "bg-white/70 text-red-700 ring-1 ring-red-200 hover:bg-red-50",
   }[variant];
   return (
@@ -21,7 +21,7 @@ export function Button({
 }
 
 export function Card({ children, className = "" }: { children: ReactNode; className?: string }) {
-  return <div className={`rounded-2xl bg-white/80 p-5 shadow-sm ring-1 ring-black/5 ${className}`}>{children}</div>;
+  return <div className={`rounded-2xl bg-white/85 p-5 shadow-sm ring-1 ring-accent/10 ${className}`}>{children}</div>;
 }
 
 export function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
@@ -54,7 +54,7 @@ export function TextArea(props: TextareaHTMLAttributes<HTMLTextAreaElement>) {
 
 export function Badge({ children, tone = "neutral" }: { children: ReactNode; tone?: "neutral" | "good" | "warn" }) {
   const styles = {
-    neutral: "bg-black/5",
+    neutral: "bg-accent-soft/70 text-accent",
     good: "bg-sage/20 text-[#3f5a44]",
     warn: "bg-amber-100 text-amber-900",
   }[tone];

@@ -1,11 +1,15 @@
 @import "tailwindcss";
 
+/* Forget Me Not: blue petals, a cream-white ring, a sunny centre, and green leaves. */
 :root {
-  --background: #f6efe6;
-  --foreground: #3b2f2a;
-  --accent: #c8714f;
-  --accent-soft: #f1d9c9;
+  --background: #f8f5ef;
+  --foreground: #23304a;
+  --accent: #3f6fb8;
+  --accent-soft: #dce7f7;
+  --petal: #7fa8e6;
+  --bloom: #f4c44e;
   --sage: #7f9a83;
+  --night: #131b2b;
 }
 
 @theme inline {
@@ -13,8 +17,12 @@
   --color-foreground: var(--foreground);
   --color-accent: var(--accent);
   --color-accent-soft: var(--accent-soft);
+  --color-petal: var(--petal);
+  --color-bloom: var(--bloom);
   --color-sage: var(--sage);
+  --color-night: var(--night);
   --font-sans: var(--font-nunito);
+  --font-display: var(--font-fraunces);
 }
 
 body {
@@ -63,4 +71,20 @@ body {
 
 .breathe {
   animation: breathe 1.6s ease-in-out infinite;
+}
+
+@keyframes bloom {
+  0%,
+  100% {
+    transform: scale(0.92) rotate(0deg);
+    opacity: 0.8;
+  }
+  50% {
+    transform: scale(1.06) rotate(12deg);
+    opacity: 1;
+  }
+}
+
+.bloom {
+  animation: bloom 2.4s ease-in-out infinite;
 }

@@ -5,6 +5,7 @@ import type { PhotoView } from "@/lib/photoView";
 import { useBrowserValue, useOnMount } from "@/lib/client/hooks";
 import { connectLive, latestSentence, type LiveChat } from "@/lib/client/live";
 import { canListen, listenOnce, speak, stopSpeaking } from "@/lib/client/voice";
+import { Flower } from "../brand";
 
 type Turn = { role: "companion" | "person"; text: string; interrupted?: boolean };
 
@@ -379,7 +380,7 @@ export default function FrameApp() {
   const current = photos[slide];
 
   return (
-    <div className="fixed inset-0 select-none overflow-hidden bg-[#1f1915] text-white">
+    <div className="fixed inset-0 select-none overflow-hidden bg-night text-white">
       {/* Slideshow */}
       {mode.kind === "idle" && current && (
         <button className="absolute inset-0 block h-full w-full" onClick={onTapSlideshow} aria-label="Talk about this photo">
@@ -388,8 +389,9 @@ export default function FrameApp() {
         </button>
       )}
       {mode.kind === "idle" && !current && (
-        <div className="flex h-full items-center justify-center px-10 text-center text-2xl opacity-70">
-          Photos will appear here once the family adds them.
+        <div className="flex h-full flex-col items-center justify-center gap-6 px-10 text-center text-2xl">
+          <Flower className="h-20 w-20" />
+          <span className="opacity-70">Photos will appear here once the family adds them.</span>
         </div>
       )}
 
@@ -397,7 +399,7 @@ export default function FrameApp() {
       {mode.kind === "recap" && (
         <div className="flex h-full flex-col items-center justify-center gap-6 px-8 py-8">
           {mode.photos.length === 0 ? (
-            <div className="breathe h-6 w-6 rounded-full bg-accent-soft" />
+            <Flower className="bloom h-16 w-16" />
           ) : (
             <>
               <div className="relative min-h-0 w-full flex-1">
@@ -411,7 +413,7 @@ export default function FrameApp() {
               </div>
               <div className="flex gap-2">
                 {mode.photos.map((p, i) => (
-                  <span key={p.id} className={`h-2 w-2 rounded-full transition ${i === mode.active ? "bg-accent-soft" : "bg-white/25"}`} />
+                  <span key={p.id} className={`h-2 w-2 rounded-full transition ${i === mode.active ? "scale-125 bg-bloom" : "bg-petal/40"}`} />
                 ))}
               </div>
               <Caption text={mode.caption} />
@@ -445,13 +447,15 @@ export default function FrameApp() {
           <div className="flex items-center gap-6 bg-gradient-to-t from-black/80 to-black/40 px-8 py-6">
             <div className="min-h-[4.5rem] flex-1 text-2xl leading-snug md:text-3xl">
               {mode.thinking ? (
-                <div className="breathe h-5 w-5 rounded-full bg-accent-soft" />
+                <Flower className="bloom h-10 w-10" />
               ) : (
                 (mode.live && mode.caption) || [...mode.turns].reverse().find((t) => t.role === "companion")?.text
               )}
             </div>
             {mode.live ? (
-              <div className="breathe h-6 w-6 shrink-0 rounded-full bg-sage" aria-label="Listening" />
+              <div className="breathe shrink-0" role="status" aria-label="Listening">
+                <Flower className="h-14 w-14" />
+              </div>
             ) : voiceInput ? (
               <button
                 onClick={listen}
@@ -496,11 +500,12 @@ export default function FrameApp() {
       {morning && mode.kind === "idle" && (
         <button
           onClick={onTapSlideshow}
-          className="fade-in absolute inset-0 flex flex-col items-center justify-center gap-10 bg-[#1f1915]/75 px-8 text-center backdrop-blur-sm"
+          className="fade-in absolute inset-0 flex flex-col items-center justify-center gap-10 bg-night/75 px-8 text-center backdrop-blur-sm"
         >
-          <span className="text-5xl font-bold leading-tight md:text-7xl">{morning.greeting}</span>
+          <Flower className="bloom h-24 w-24 md:h-32 md:w-32" />
+          <span className="font-display text-5xl font-semibold leading-tight tracking-tight md:text-7xl">{morning.greeting}</span>
           <span className="flex items-center gap-4 rounded-full bg-accent px-12 py-7 text-3xl font-bold shadow-2xl md:text-4xl">
-            <span className="breathe inline-block h-5 w-5 rounded-full bg-white/80" />
+            <span className="breathe inline-block h-5 w-5 rounded-full bg-bloom" />
             {morning.hasYesterday ? "Let\u2019s look at yesterday" : "Let\u2019s look at some photos"}
           </span>
           <span className="text-xl opacity-70 md:text-2xl">Touch anywhere</span>
@@ -509,7 +514,8 @@ export default function FrameApp() {
 
       {/* Gentle photo invitation */}
       {invite && mode.kind === "idle" && !morning && (
-        <div className="fade-in absolute bottom-8 left-1/2 flex -translate-x-1/2 items-center gap-4 rounded-full bg-[#f6efe6]/95 px-7 py-4 text-xl text-[#3b2f2a] shadow-2xl">
+        <div className="fade-in absolute bottom-8 left-1/2 flex -translate-x-1/2 items-center gap-4 rounded-full bg-background/95 px-7 py-4 text-xl text-foreground shadow-2xl">
+          <Flower className="h-8 w-8 shrink-0" />
           <span>{invite.text}</span>
           <button
             className="rounded-full bg-black/10 px-4 py-1 text-base"

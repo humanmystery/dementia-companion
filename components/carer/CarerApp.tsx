@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { BRAND, Wordmark } from "../brand";
 import ConversationsTab from "./ConversationsTab";
 import DemoTab from "./DemoTab";
 import PeopleTab from "./PeopleTab";
@@ -27,11 +28,11 @@ export default function CarerApp() {
     <div className="mx-auto w-full max-w-5xl px-5 py-8">
       <header className="mb-6 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <Link href="/" className="text-sm opacity-60">
-            Forget Me Not
+          <Link href="/" className="text-accent">
+            <Wordmark size="text-lg" />
           </Link>
-          <h1 className="text-3xl font-bold">Carer setup</h1>
-          <p className="opacity-70">Everything the companion says comes from what you confirm here.</p>
+          <h1 className="mt-1 font-display text-4xl font-semibold tracking-tight">Carer setup</h1>
+          <p className="opacity-70">Everything {BRAND} says comes from what you confirm here.</p>
         </div>
         <div className="flex gap-2 text-sm">
           <Link className="rounded-xl bg-white/70 px-3 py-2 ring-1 ring-black/10" href="/frame" target="_blank">
@@ -48,7 +49,7 @@ export default function CarerApp() {
             key={t.id}
             onClick={() => setTab(t.id)}
             className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
-              tab === t.id ? "bg-accent text-white" : "bg-white/70 ring-1 ring-black/10 hover:bg-white"
+              tab === t.id ? "bg-accent text-white shadow-sm" : "bg-white/70 ring-1 ring-accent/15 hover:bg-white"
             }`}
           >
             {t.label}

@@ -6,6 +6,7 @@ import { detectFaces, loadFaceApi } from "@/lib/client/faces";
 import { canvasToBlob, resizeToCanvas } from "@/lib/client/images";
 import { enablePush, pushConfigured } from "@/lib/client/push";
 import { speak } from "@/lib/client/voice";
+import { BRAND, Flower } from "../brand";
 
 type TaskResult = {
   status: string;
@@ -237,8 +238,9 @@ export default function CaptureApp() {
 
   if (!started) {
     return (
-      <div className="flex min-h-dvh flex-col items-center justify-center gap-6 bg-[#1f1915] px-8 text-center text-white">
-        <h1 className="text-3xl font-bold">Your companion</h1>
+      <div className="flex min-h-dvh flex-col items-center justify-center gap-6 bg-night px-8 text-center text-white">
+        <Flower className="bloom h-24 w-24" />
+        <h1 className="font-display text-4xl font-semibold tracking-tight">{BRAND}</h1>
         <p className="max-w-sm text-lg opacity-80">
           {fromNotification ? "Shall we take a photo?" : "This phone stands in for the glasses. Pop your earbuds in."}
         </p>
@@ -261,7 +263,7 @@ export default function CaptureApp() {
         )}
 
         {invite && (
-          <div className="fade-in mb-4 flex items-center gap-3 rounded-3xl bg-[#f6efe6] px-5 py-4 text-xl text-[#3b2f2a]">
+          <div className="fade-in mb-4 flex items-center gap-3 rounded-3xl bg-background px-5 py-4 text-xl text-foreground">
             <span className="flex-1">{invite.text}</span>
             <button onClick={takePhoto} className="rounded-full bg-accent px-5 py-2 font-bold text-white">
               Yes

@@ -1,24 +1,26 @@
 import type { Metadata, Viewport } from "next";
-import { Nunito } from "next/font/google";
+import { Fraunces, Nunito } from "next/font/google";
 import "./globals.css";
 
 const nunito = Nunito({ variable: "--font-nunito", subsets: ["latin"] });
+const fraunces = Fraunces({ variable: "--font-fraunces", subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Forget Me Not",
-  description: "A friendly life companion for early and mid-stage dementia.",
+  title: { default: "Forget Me Not", template: "%s · Forget Me Not" },
+  description: "A gentle companion for people living with dementia, and the family around them.",
   manifest: "/manifest.webmanifest",
+  appleWebApp: { title: "Forget Me Not" },
 };
 
 export const viewport: Viewport = {
-  themeColor: "#f6efe6",
+  themeColor: "#f8f5ef",
   width: "device-width",
   initialScale: 1,
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={`${nunito.variable} h-full antialiased`}>
+    <html lang="en" className={`${nunito.variable} ${fraunces.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col">{children}</body>
     </html>
   );

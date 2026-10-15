@@ -1,9 +1,12 @@
 {
   "name": "Forget Me Not",
   "short_name": "Forget Me Not",
+  "description": "A gentle companion for people living with dementia, and the family around them.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#f6efe6",
-  "theme_color": "#f6efe6",
-  "icons": []
+  "background_color": "#f8f5ef",
+  "theme_color": "#f8f5ef",
+  "icons": [
+    { "src": "/brand/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
 }
